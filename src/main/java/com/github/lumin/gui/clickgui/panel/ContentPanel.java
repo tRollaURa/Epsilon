@@ -538,6 +538,7 @@ public class ContentPanel implements IComponent {
         settingsRoundRect.drawAndClear();
         settingsRect.drawAndClear();
         settingsFont.drawAndClear();
+
         clearScissor();
 
         settingsComponent.renderOverlayBlurs(mouseX, mouseY, deltaTicks);
@@ -779,10 +780,18 @@ public class ContentPanel implements IComponent {
         if (currentState == 2) {
             viewAnimation.run(1.0f);
             if (viewAnimation.getValue() >= 0.99f) currentState = 1;
+
+            setupScissor(this.x, this.y, this.width * guiScale, this.height * guiScale, (float) mc.getWindow().getGuiScale(), mc.getWindow().getWidth(), mc.getWindow().getHeight(), mc.getWindow().getGuiScaledHeight());
+
             renderListView(set, mouseX, mouseY, deltaTicks, alpha);
             renderSettingsView(set, mouseX, mouseY, deltaTicks, alpha);
+
+            clearScissor();
         } else if (currentState == 3) {
             closeSettingsRequested = true;
+
+            setupScissor(this.x, this.y, this.width * guiScale, this.height * guiScale, (float) mc.getWindow().getGuiScale(), mc.getWindow().getWidth(), mc.getWindow().getHeight(), mc.getWindow().getGuiScaledHeight());
+
             renderListView(set, mouseX, mouseY, deltaTicks, alpha);
             if (settingsComponent != null) {
                 if (!exitAnimationStarted) {
@@ -797,6 +806,8 @@ public class ContentPanel implements IComponent {
                     exitAnimationStarted = false;
                 }
             }
+
+            clearScissor();
         } else if (currentState == 1) {
             renderSettingsView(set, mouseX, mouseY, deltaTicks, alpha);
         } else {

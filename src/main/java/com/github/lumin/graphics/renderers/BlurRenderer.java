@@ -326,4 +326,5 @@ public class BlurRenderer implements AutoCloseable {
         }
         targets.clear();
     }
+
 }
