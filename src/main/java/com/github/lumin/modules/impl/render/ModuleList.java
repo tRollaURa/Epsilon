@@ -9,6 +9,7 @@ import com.github.lumin.modules.Module;
 import com.github.lumin.settings.impl.BoolSetting;
 import com.github.lumin.settings.impl.ColorSetting;
 import com.github.lumin.settings.impl.DoubleSetting;
+import com.github.lumin.settings.impl.ModeSetting;
 import com.google.common.base.Suppliers;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.client.event.RenderGuiEvent;
@@ -27,12 +28,13 @@ public class ModuleList extends Module {
     public ModuleList() {
         super("功能列表", "ModuleList", Category.RENDER);
     }
-
+    private final ModeSetting language = modeSetting("语言", "中文", new String[]{"中文", "英文"});
     private final DoubleSetting scale = doubleSetting("缩放", 1.0, 0.5, 2.0, 0.1);
     private final ColorSetting shadowColor = colorSetting("阴影颜色", new Color(68, 0, 0, 94));
+    private final DoubleSetting glowRadius = doubleSetting("发光半径", 3.0, 1.0, 10.0, 0.5);
+    private final DoubleSetting glowIntensity = doubleSetting("发光强度", 1.0, 1.0, 5.0, 1.0);
     private final BoolSetting showCategory = boolSetting("显示分类", false);
     private final BoolSetting showIcon = boolSetting("显示图标", true);
-
     private final Supplier<TextRenderer> textRendererSupplier = Suppliers.memoize(TextRenderer::new);
     private final Supplier<ShadowRenderer> shadowRendererSupplier = Suppliers.memoize(ShadowRenderer::new);
 
@@ -54,59 +56,55 @@ public class ModuleList extends Module {
         float screenWidth = mc.getWindow().getGuiScaledWidth();
         float moduleScale = scale.getValue().floatValue();
 
-        float padding = 4.0f * moduleScale;
-        float itemHeight = 16.0f * moduleScale;
-        float gap = 2.0f * moduleScale;
-        float iconGap = 2.0f * moduleScale;
-        float iconBoxSize = itemHeight;
-
         List<ItemInfo> items = new ArrayList<>();
 
         for (Module module : enabledModules) {
-            String text = showCategory.getValue()
-                    ? module.getChineseName() + " [" + module.category.getName() + "]"
-                    : module.getChineseName();
+            String text = "中文".equals(language.getValue()) ? module.getChineseName() : module.getDescription();
+            if (showCategory.getValue()) {
+                text += " [" + module.category.getName() + "]";
+            }
             float textWidth = textRenderer.getWidth(text, moduleScale);
-            float boxWidth = textWidth + padding * 2;
-            float boxHeight = itemHeight;
+            float boxWidth = textWidth + 4.0f * moduleScale * 2;
+            float boxHeight = 16.0f * moduleScale;
             float totalWidth = boxWidth;
             if (showIcon.getValue()) {
-                totalWidth += iconBoxSize + iconGap;
+                totalWidth += boxHeight + 2.0f * moduleScale;
             }
             items.add(new ItemInfo(module, text, boxWidth, boxHeight, totalWidth));
         }
 
-        float currentY = getPositionY();
+        float currentY = 4.0f * moduleScale;
 
         for (ItemInfo item : items) {
-            float totalX = getPositionX(screenWidth, item.totalWidth());
+            float totalX = screenWidth - item.totalWidth() - 4.0f * moduleScale;
             float boxY = currentY;
 
-            float textBoxX;
-            float iconBoxX;
-
-            textBoxX = totalX;
-            iconBoxX = totalX + item.boxWidth() + iconGap;
+            float textBoxX = totalX;
+            float iconBoxX = totalX + item.boxWidth() + 2.0f * moduleScale;
 
             shadowRenderer.addShadow(textBoxX, boxY, item.boxWidth(), item.boxHeight(), 6.0f * moduleScale, 10.0f * moduleScale, shadowColor.getValue());
 
-            float textX = textBoxX + padding - 1.5f;
+            float textX = textBoxX + 4.0f * moduleScale - 1.5f;
             float textY = boxY + (item.boxHeight() - textRenderer.getHeight(moduleScale)) / 5.0f;
-            textRenderer.addText(item.text(), textX, textY, moduleScale, new Color(0xFFFFFF));
+            if ("中文".equals(language.getValue())) {
+                textRenderer.addGlowingText(item.text(), textX + 1, textY, moduleScale, new Color(255, 255, 255, 126), glowRadius.getValue().floatValue(), glowIntensity.getValue().intValue());
+            } else {
+                textRenderer.addGlowingText(item.text(), textX + 0.7f, textY - 0.5f, moduleScale, new Color(255, 255, 255, 126), glowRadius.getValue().floatValue(), glowIntensity.getValue().intValue());
+            }
 
             if (showIcon.getValue()) {
-                shadowRenderer.addShadow(iconBoxX, boxY, iconBoxSize, iconBoxSize, 6.0f * moduleScale, 10.0f * moduleScale, shadowColor.getValue());
+                shadowRenderer.addShadow(iconBoxX, boxY, item.boxHeight(), item.boxHeight(), 6.0f * moduleScale, 10.0f * moduleScale, shadowColor.getValue());
 
                 String iconChar = item.module().category.icon;
                 float iconScale = moduleScale * 0.8f;
                 float iconWidth = textRenderer.getWidth(iconChar, iconScale, StaticFontLoader.ICONS);
                 float iconHeight = textRenderer.getHeight(iconScale, StaticFontLoader.ICONS);
-                float iconX = iconBoxX + (iconBoxSize - iconWidth) / 3.0f;
-                float iconY = boxY + (iconBoxSize - iconHeight) / 5.0f;
-                textRenderer.addText(iconChar, iconX, iconY, iconScale, new Color(0xFFFFFF), StaticFontLoader.ICONS);
+                float iconX = iconBoxX + (item.boxHeight() - iconWidth) / 3.0f;
+                float iconY = boxY + (item.boxHeight() - iconHeight) / 5.0f;
+                textRenderer.addGlowingText(iconChar, iconX, iconY, iconScale, new Color(255, 255, 255, 92), 3.0f,1, StaticFontLoader.ICONS);
             }
 
-            currentY += item.boxHeight() + gap;
+            currentY += item.boxHeight() + 2.0f * moduleScale;
         }
 
         shadowRenderer.drawAndClear();
@@ -115,21 +113,12 @@ public class ModuleList extends Module {
 
     private int getTextWidth(Module module) {
         TextRenderer textRenderer = textRendererSupplier.get();
-        String text = showCategory.getValue()
-                ? module.getChineseName() + " [" + module.category.getName() + "]"
-                : module.getChineseName();
+        String text = "中文".equals(language.getValue()) ? module.getChineseName() : module.getDescription();;
+        if (showCategory.getValue()) {
+            text += " [" + module.category.getName() + "]";
+        }
         return (int) textRenderer.getWidth(text, scale.getValue().floatValue());
     }
 
-    private float getPositionX(float screenWidth, float boxWidth) {
-        float margin = 4.0f * scale.getValue().floatValue();
-        return screenWidth - boxWidth - margin;
-    }
-
-    private float getPositionY() {
-        return 4.0f * scale.getValue().floatValue();
-    }
-
-    private record ItemInfo(Module module, String text, float boxWidth, float boxHeight, float totalWidth) {
-    }
+    private record ItemInfo(Module module, String text, float boxWidth, float boxHeight, float totalWidth) {}
 }

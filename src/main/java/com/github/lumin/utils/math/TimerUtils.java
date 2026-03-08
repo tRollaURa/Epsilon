@@ -1,4 +1,4 @@
-package com.github.lumin.utils.timer;
+package com.github.lumin.utils.math;
 
 public class TimerUtils {
 

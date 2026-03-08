@@ -713,7 +713,7 @@ public class ContentPanel implements IComponent {
             float et = Mth.clamp(enabledAnimation.getValue(), 0.0f, 1.0f);
 
             Color offColor = new Color(40, 40, 40, 130);
-            Color onColor = new Color(148, 148, 148, 130);
+            Color onColor = new Color(0x35FFFFFF, true);
             int r = (int) (offColor.getRed() + (onColor.getRed() - offColor.getRed()) * et);
             int g = (int) (offColor.getGreen() + (onColor.getGreen() - offColor.getGreen()) * et);
             int b = (int) (offColor.getBlue() + (onColor.getBlue() - offColor.getBlue()) * et);

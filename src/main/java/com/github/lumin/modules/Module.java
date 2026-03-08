@@ -1,5 +1,6 @@
 package com.github.lumin.modules;
 
+import com.github.lumin.Lumin;
 import com.github.lumin.settings.Setting;
 import com.github.lumin.settings.impl.*;
 import net.minecraft.client.Minecraft;
@@ -13,7 +14,7 @@ public class Module {
 
     private final String chineseName;
 
-    private final String chineseDescription;
+    private final String englishName;
 
     public Category category;
 
@@ -29,9 +30,9 @@ public class Module {
 
     protected static final Minecraft mc = Minecraft.getInstance();
 
-    public Module(String chineseName, String chineseDescription, Category category) {
+    public Module(String chineseName, String englishName, Category category) {
         this.chineseName = chineseName;
-        this.chineseDescription = chineseDescription;
+        this.englishName = englishName;
         this.category = category;
     }
 
@@ -45,32 +46,37 @@ public class Module {
     protected void onDisable() {
     }
 
+    public void toggle() {
+        enabled = !enabled;
+
+        if (enabled) {
+            try {
+                NeoForge.EVENT_BUS.register(this);
+            } catch (Exception ignored) {
+            }
+
+            onEnable();
+
+            Lumin.LOGGER.info("{} 已启用", chineseName);
+        } else {
+            try {
+                NeoForge.EVENT_BUS.unregister(this);
+            } catch (Exception ignored) {
+            }
+
+            onDisable();
+
+            Lumin.LOGGER.info("{} 已禁用", chineseName);
+        }
+    }
+
     public boolean isEnabled() {
         return enabled;
     }
 
-    public void toggle() {
-        setEnabled(!enabled);
-    }
-
     public void setEnabled(boolean enabled) {
-        if (this.enabled != enabled) {
-            this.enabled = enabled;
-            if (enabled) {
-                try {
-                    NeoForge.EVENT_BUS.register(this);
-                } catch (Exception ignored) {
-                }
-                
-                onEnable();
-            } else {
-                try {
-                    NeoForge.EVENT_BUS.unregister(this);
-                } catch (Exception ignored) {
-                }
-
-                onDisable();
-            }
+        if (enabled != this.enabled) {
+            toggle();
         }
     }
 
@@ -116,11 +122,11 @@ public class Module {
     }
 
     public String getDescription() {
-        return chineseDescription;
+        return englishName;
     }
 
     public String getChineseDescription() {
-        return chineseDescription;
+        return englishName;
     }
 
     protected IntSetting intSetting(String chineseName, int defaultValue, int min, int max, int step, Setting.Dependency dependency) {

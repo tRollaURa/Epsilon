@@ -7,7 +7,6 @@ import com.github.lumin.modules.Category;
 import com.github.lumin.modules.Module;
 import com.github.lumin.settings.impl.BoolSetting;
 import com.github.lumin.settings.impl.ColorSetting;
-import com.github.lumin.settings.impl.IntSetting;
 import com.github.lumin.utils.render.WorldToScreen;
 import com.google.common.base.Suppliers;
 import net.minecraft.client.gui.GuiGraphics;
@@ -19,8 +18,7 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.client.event.RenderGuiEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
-import org.joml.Matrix4f;
-import org.joml.Vector2f;
+import org.joml.Vector4d;
 
 import java.awt.*;
 import java.util.ArrayList;
@@ -35,7 +33,6 @@ public class Nametags extends Module {
         super("名牌显示", "Nametags", Category.RENDER);
     }
 
-    private final IntSetting range = intSetting("距离", 64, 8, 256, 1);
     private final BoolSetting showSelf = boolSetting("显示自己", false);
     private final BoolSetting showItems = boolSetting("显示装备", false);
     private final BoolSetting showHealthText = boolSetting("显示血量数值", true);
@@ -55,30 +52,16 @@ public class Nametags extends Module {
         GuiGraphics guiGraphics = event.getGuiGraphics();
         RoundRectRenderer roundRectRenderer = roundRectRendererSupplier.get();
         TextRenderer textRenderer = textRendererSupplier.get();
-
-        Color bg = backgroundColor.getValue();
-        Color fg = textColor.getValue();
-
+        
         for (TagInfo tag : tags) {
-            float scale = tag.scale();
-            float textW = textRenderer.getWidth(tag.text(), scale, StaticFontLoader.REGULAR);
-            float textH = textRenderer.getHeight(scale, StaticFontLoader.REGULAR);
-            float hpW = showHealthText.getValue() ? textRenderer.getWidth(tag.healthText(), scale, StaticFontLoader.REGULAR) : 0.0f;
-            float topLineW = (showHealthText.getValue() && hpW > 0.0f) ? textW + 4.0f + hpW : textW;
-            float boxW = topLineW + 8.0f;
-            float boxH = textH + 8.0f;
-            float boxLeft = tag.x() - boxW * 0.5f;
-            float boxTop = tag.y() - boxH - 8.0f;
-            float cursorY = boxTop + 4.0f;
-
             if (showItems.getValue() && !tag.items().isEmpty()) {
-                float itemRowW = (tag.items().size() * 16.0f + (tag.items().size() - 1) * 2.0f) * scale;
+                float itemRowW = (tag.items().size() * 16.0f + (tag.items().size() - 1) * 2.0f) * tag.scale();
                 float itemsLeft = tag.x() - itemRowW * 0.5f;
-                float itemY = boxTop - 16.0f * scale - 2.0f;
+                float itemY = tag.y() - (textRenderer.getHeight(tag.scale(), StaticFontLoader.REGULAR) + 8.0f) - 8.0f - 7.0f * tag.scale() - 2.0f;
 
                 guiGraphics.pose().pushMatrix();
                 guiGraphics.pose().translate(itemsLeft, itemY);
-                guiGraphics.pose().scale(scale, scale);
+                guiGraphics.pose().scale(tag.scale(), tag.scale());
                 guiGraphics.pose().translate(-itemsLeft, -itemY);
 
                 int seed = 0;
@@ -92,11 +75,14 @@ public class Nametags extends Module {
                 guiGraphics.pose().popMatrix();
             }
 
-            roundRectRenderer.addRoundRect(boxLeft, boxTop, boxW, boxH, 6.0f * scale, bg);
-            textRenderer.addText(tag.text(), tag.x() - topLineW * 0.5f, cursorY - 2, scale, fg, StaticFontLoader.REGULAR);
+            float hpW = showHealthText.getValue() ? textRenderer.getWidth(tag.healthText(), tag.scale(), StaticFontLoader.REGULAR) : 0.0f;
+            float topLineW = (showHealthText.getValue() && hpW > 0.0f) ? textRenderer.getWidth(tag.text(), tag.scale(), StaticFontLoader.REGULAR) + 4.0f + hpW : textRenderer.getWidth(tag.text(), tag.scale(), StaticFontLoader.REGULAR);
+
+            roundRectRenderer.addRoundRect(tag.x() - topLineW + 8.0f * 0.5f + 21.5F, tag.y() - textRenderer.getHeight(tag.scale(), StaticFontLoader.REGULAR) + 8 - 15, topLineW + 8.0f, textRenderer.getHeight(tag.scale(), StaticFontLoader.REGULAR) + 8.0f, 6.0f * tag.scale(), backgroundColor.getValue());
+            textRenderer.addGlowingText(tag.text(), tag.x() - topLineW * 0.5f, tag.y() - textRenderer.getHeight(tag.scale(), StaticFontLoader.REGULAR) + 8.0f - 8.0f + 4.0f - 9, tag.scale(), textColor.getValue(), 1.0f, (int) 2.0, StaticFontLoader.REGULAR);
 
             if (showHealthText.getValue() && hpW > 0.0f) {
-                textRenderer.addText(tag.healthText(), tag.x() - topLineW * 0.5f + textW + 4.0f, cursorY - 2, scale, tag.healthColor(), StaticFontLoader.REGULAR);
+                textRenderer.addGlowingText(tag.healthText(), tag.x() - topLineW * 0.5f + textRenderer.getWidth(tag.text(), tag.scale(), StaticFontLoader.REGULAR) + 4.0f, tag.y() - textRenderer.getHeight(tag.scale(), StaticFontLoader.REGULAR) + 8.0f - 8.0f + 4.0f - 9, tag.scale(), tag.healthColor(), 1.0f, (int) 2.0, StaticFontLoader.REGULAR);
             }
         }
 
@@ -112,45 +98,34 @@ public class Nametags extends Module {
         tags.clear();
 
         float partialTick = mc.getDeltaTracker().getGameTimeDeltaPartialTick(true);
-        Vec3 cameraPos = mc.getEntityRenderDispatcher().camera.position();
+        Vec3 cameraPos = mc.gameRenderer.getMainCamera().position();
 
-        var window = mc.getWindow();
-        float guiWidth = (float) window.getWidth() / (float) window.getGuiScale();
-        float guiHeight = (float) window.getHeight() / (float) window.getGuiScale();
-
-        float aspect = (float) window.getWidth() / (float) window.getHeight();
-
-        int fovDeg = mc.options.fov().get();
-        float fovRad = (float) Math.toRadians(fovDeg);
-
-        float far = (float) Math.max(256.0, mc.gameRenderer.getRenderDistance());
-        Matrix4f projection = new Matrix4f().setPerspective(fovRad, aspect, 0.05f, far);
-        Matrix4f modelViewRotation = new Matrix4f(event.getModelViewMatrix());
-
-        float maxRange = range.getValue();
+        float guiWidth = (float) mc.getWindow().getGuiScaledWidth();
+        float guiHeight = (float) mc.getWindow().getGuiScaledHeight();
 
         for (Player player : mc.level.players()) {
             if (!showSelf.getValue() && player == mc.player) continue;
 
             Vec3 playerPos = player.getPosition(partialTick);
             float dist = (float) playerPos.distanceTo(cameraPos);
-            if (dist > maxRange) continue;
+            if (dist > 256) continue;
 
-            Vec3 headPos = playerPos.add(0.0, player.getBbHeight() + 0.35, 0.0);
-            Vector2f screen = WorldToScreen.projectToGui(headPos, cameraPos, modelViewRotation, projection, guiWidth, guiHeight);
-            if (screen == null) continue;
+            Vector4d screenPos = WorldToScreen.getHeadPositionOn2D(player, partialTick);
+            if (screenPos == null) continue;
 
-            if (screen.x < -64.0f || screen.y < -64.0f || screen.x > guiWidth + 64.0f || screen.y > guiHeight + 64.0f)
+            float screenX = (float) screenPos.x;
+            float screenY = (float) screenPos.y;
+
+            if (screenX < -64.0f || screenY < -64.0f || screenX > guiWidth + 64.0f || screenY > guiHeight + 64.0f)
                 continue;
 
             String text = player.getName().getString();
-            float scale = Math.max(0.65f, 1.0f - (dist / maxRange) * 0.35f);
+            float scale = Math.max(0.65f, 1.0f - (dist / 256) * 0.35f);
 
             float maxHealth = player.getMaxHealth();
             float health = player.getHealth() + player.getAbsorptionAmount();
-            float frac = maxHealth > 0.0f ? health / maxHealth : 0.0f;
             String hpText = String.format("%.1f", health);
-            Color hpColor = getHealthColor(frac);
+            Color hpColor = getHealthColor(maxHealth > 0.0f ? health / maxHealth : 0.0f);
 
             List<ItemStack> items = new ArrayList<>();
             if (showItems.getValue()) {
@@ -171,7 +146,7 @@ public class Nametags extends Module {
                 if (!main.isEmpty()) items.add(main);
             }
 
-            tags.add(new TagInfo(text, hpText, hpColor, items, screen.x, screen.y + 5, scale));
+            tags.add(new TagInfo(text, hpText, hpColor, items, screenX, screenY, scale));
         }
     }
 
@@ -200,4 +175,3 @@ public class Nametags extends Module {
     }
 
 }
-
