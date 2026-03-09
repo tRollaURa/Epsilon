@@ -1,7 +1,6 @@
 package com.github.lumin.modules.impl.player;
 
 import com.github.lumin.events.PacketEvent;
-import com.github.lumin.mixins.IServerboundMovePlayerPacket;
 import com.github.lumin.modules.Category;
 import com.github.lumin.modules.Module;
 import com.github.lumin.settings.impl.BoolSetting;
@@ -31,7 +30,7 @@ public class Disabler extends Module {
             if (event.getPacket() instanceof ServerboundMovePlayerPacket packet && packet.hasRotation()) {
                 float yaw = packet.getYRot(0);
                 if (yaw < 360.0f && yaw > -360.0f) {
-                    ((IServerboundMovePlayerPacket) packet).setYaw(yaw + 720f);
+                    packet.yRot = yaw + 720f;
                 }
             }
         }
@@ -40,7 +39,7 @@ public class Disabler extends Module {
             if (event.getPacket() instanceof ServerboundMovePlayerPacket c03) {
                 if (c03.hasRotation()) {
                     if (lastYaw == c03.getYRot(0) && lastPitch == c03.getXRot(0)) {
-                        ((IServerboundMovePlayerPacket) c03).setYaw(c03.getYRot(0) + 0.001f);
+                        c03.yRot = c03.getYRot(0) + 0.001f;
                     }
                     lastYaw = c03.getYRot(0);
                     lastPitch = c03.getXRot(0);
@@ -54,7 +53,7 @@ public class Disabler extends Module {
                     float originalYaw = packet.getYRot(0.0F);
 
                     if (originalYaw < 360.0F && originalYaw > -360.0F) {
-                        ((IServerboundMovePlayerPacket) packet).setYaw(originalYaw + 720f);
+                        packet.yRot = originalYaw + 720f;
                     }
 
                     float lastPlayerYaw = this.playerYaw;
@@ -66,9 +65,9 @@ public class Disabler extends Module {
                         Random random = new Random();
                         float perturbation = 0.005f + random.nextFloat() * 0.015f;
                         if (random.nextBoolean()) {
-                            ((IServerboundMovePlayerPacket) packet).setYaw(packet.getYRot(0) + perturbation);
+                            packet.yRot = packet.getYRot(0) + perturbation;
                         } else {
-                            ((IServerboundMovePlayerPacket) packet).setYaw(packet.getYRot(0) - perturbation);
+                            packet.yRot = packet.getYRot(0) - perturbation;
                         }
 
                         this.lastPlacedDeltaYaw = this.deltaYaw;

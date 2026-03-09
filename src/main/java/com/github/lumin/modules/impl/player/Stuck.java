@@ -1,7 +1,6 @@
 package com.github.lumin.modules.impl.player;
 
 import com.github.lumin.events.PacketEvent;
-import com.github.lumin.mixins.IClientInput;
 import com.github.lumin.modules.Category;
 import com.github.lumin.modules.Module;
 import com.github.lumin.utils.network.PacketUtils;
@@ -31,8 +30,8 @@ public class Stuck extends Module {
     }
 
     @SubscribeEvent
-    public void onMove(MovementInputUpdateEvent e) {
-        ((IClientInput) e.getInput()).setMoveVector(new Vec2(0, 0));
+    public void onMovementInputUpdate(MovementInputUpdateEvent e) {
+        e.getInput().moveVector = new Vec2(0, 0);
     }
 
     @SubscribeEvent

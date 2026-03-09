@@ -1,6 +1,6 @@
 package com.github.lumin.utils.render;
 
-import com.github.lumin.mixins.IGameRenderer;
+import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
@@ -77,11 +77,10 @@ public final class WorldToScreen {
     }
 
     public static Matrix4f createProjectionMatrix(final float tickDelta) {
-        IGameRenderer gameRendererAccessor = (IGameRenderer) mc.gameRenderer;
         Matrix4fStack matrixStack = new Matrix4fStack();
         net.minecraft.client.Camera camera = mc.gameRenderer.getMainCamera();
 
-        float fov = gameRendererAccessor.callGetFov(camera, tickDelta, true);
+        float fov = mc.gameRenderer.getFov(camera, tickDelta, true);
 
         matrixStack.mul(mc.gameRenderer.getProjectionMatrix(fov));
 
@@ -105,12 +104,8 @@ public final class WorldToScreen {
     }
 
     public static Vec3 interpolate(final LivingEntity entity, final float tickDelta) {
-        net.minecraft.client.Camera camera = mc.gameRenderer.getMainCamera();
-        return new Vec3(
-                Mth.lerp(tickDelta, entity.xOld, entity.getX()) - camera.position().x,
-                Mth.lerp(tickDelta, entity.yOld, entity.getY()) - camera.position().y,
-                Mth.lerp(tickDelta, entity.zOld, entity.getZ()) - camera.position().z
-        );
+        Camera camera = mc.gameRenderer.getMainCamera();
+        return entity.position().add(Mth.lerp(tickDelta, entity.xOld, entity.getX()) - entity.getX(), Mth.lerp(tickDelta, entity.yOld, entity.getY()) - entity.getY(), Mth.lerp(tickDelta, entity.zOld, entity.getZ()) - entity.getZ()).subtract(camera.position());
     }
 
     public static Vector4d getHeadPositionOn2D(LivingEntity target, float tickDelta) {

@@ -1,8 +1,8 @@
 package com.github.lumin.utils.player;
 
-import com.github.lumin.mixins.IClientInput;
 import com.github.lumin.utils.math.MathUtils;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.ClientInput;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec2;
 import net.neoforged.neoforge.client.event.MovementInputUpdateEvent;
@@ -57,7 +57,7 @@ public class MoveUtils {
             }
         }
 
-        ((IClientInput) event.getInput()).setMoveVector(new Vec2(closestStrafe, closestForward));
+        event.getInput().moveVector = new Vec2(closestStrafe, closestForward);
     }
 
 }

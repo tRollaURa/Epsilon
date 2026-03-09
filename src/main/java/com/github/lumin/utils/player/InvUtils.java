@@ -1,6 +1,5 @@
 package com.github.lumin.utils.player;
 
-import com.github.lumin.mixins.IMultiPlayerGameMode;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.ClickType;
@@ -129,7 +128,7 @@ public class InvUtils {
         else if (!swapBack) previousSlot = -1;
 
         mc.player.getInventory().setSelectedSlot(slot);
-        ((IMultiPlayerGameMode) mc.gameMode).syncSelectedSlot();
+        mc.gameMode.ensureHasSentCarriedItem();
         return true;
     }
 

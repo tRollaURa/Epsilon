@@ -3,11 +3,6 @@
   "package": "com.github.lumin.mixins",
   "compatibilityLevel": "JAVA_21",
   "client": [
-    "IClientInput",
-    "IGameRenderer",
-    "IMinecraft",
-    "IMultiPlayerGameMode",
-    "IServerboundContainerClickPacket",
     "MixinClientLevel",
     "MixinEntity",
     "MixinEntityRenderer",
@@ -28,7 +23,6 @@
     "requireAnnotations": true
   },
   "mixins": [
-    "MixinConnection",
-    "IServerboundMovePlayerPacket"
+    "MixinConnection"
   ]
 }
