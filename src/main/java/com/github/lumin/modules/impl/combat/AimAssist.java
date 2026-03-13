@@ -23,6 +23,7 @@ import java.util.Comparator;
 import java.util.List;
 
 public class AimAssist extends Module {
+
     public static final AimAssist INSTANCE = new AimAssist();
 
     public EnumSetting<SmoothMode> mode = enumSetting("Mode", SmoothMode.Fast);
@@ -185,4 +186,5 @@ public class AimAssist extends Module {
         Fast,
         Stable,
     }
+
 }

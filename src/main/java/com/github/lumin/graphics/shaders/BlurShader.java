@@ -2,6 +2,7 @@ package com.github.lumin.graphics.shaders;
 
 import com.github.lumin.graphics.LuminRenderPipelines;
 import com.github.lumin.graphics.LuminRenderSystem;
+import com.github.lumin.graphics.buffer.LuminRingBuffer;
 import com.mojang.blaze3d.ProjectionType;
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
@@ -30,12 +31,17 @@ import java.util.OptionalInt;
 public class BlurShader implements AutoCloseable {
 
     public static final BlurShader INSTANCE = new BlurShader();
+    private static final int UNIFORM_ALIGNMENT = 256;
 
     private final Minecraft mc = Minecraft.getInstance();
     private final List<RenderTarget> targets = new ArrayList<>();
     private RenderTarget outputTarget;
     private GpuBuffer quadBuffer;
+    private GpuBuffer identityProjectionBuffer;
+    private GpuBufferSlice identityProjectionSlice;
     private GpuSampler linearSampler;
+    private LuminRingBuffer uniformRingBuffer;
+    private LuminRingBuffer vertexRingBuffer;
     private int lastWidth, lastHeight;
 
     public BlurShader() {
@@ -53,7 +59,7 @@ public class BlurShader implements AutoCloseable {
         buffer.flip();
 
         quadBuffer = RenderSystem.getDevice().createBuffer(
-                () -> "Lumin Blur",
+                () -> "Lumin Blur Quad",
                 GpuBuffer.USAGE_VERTEX,
                 buffer
         );
@@ -66,6 +72,22 @@ public class BlurShader implements AutoCloseable {
                 FilterMode.LINEAR,
                 1, OptionalDouble.empty()
         );
+
+        ByteBuffer projBuf = MemoryUtil.memAlloc(RenderSystem.PROJECTION_MATRIX_UBO_SIZE);
+        for (int i = 0; i < 16; i++) {
+            projBuf.putFloat(i % 5 == 0 ? 1.0f : 0.0f);
+        }
+        projBuf.flip();
+        identityProjectionBuffer = RenderSystem.getDevice().createBuffer(
+                () -> "Blur Identity Projection",
+                GpuBuffer.USAGE_UNIFORM,
+                projBuf
+        );
+        identityProjectionSlice = identityProjectionBuffer.slice();
+        MemoryUtil.memFree(projBuf);
+
+        uniformRingBuffer = new LuminRingBuffer(64 * 1024, GpuBuffer.USAGE_UNIFORM);
+        vertexRingBuffer = new LuminRingBuffer(16 * 1024, GpuBuffer.USAGE_VERTEX);
     }
 
     public void resize(int width, int height) {
@@ -105,10 +127,6 @@ public class BlurShader implements AutoCloseable {
 
         if (targets.isEmpty()) return null;
 
-        // Strategy:
-        // Pass 1: radius 0-4
-        // Pass 2: radius 4-8
-        // Pass 3: radius 8-12
         float passInterval = 4.0f;
         int passes = Mth.clamp((int) Math.ceil(radius / passInterval), 1, targets.size());
 
@@ -117,28 +135,25 @@ public class BlurShader implements AutoCloseable {
         RenderTarget mainTarget = mc.getMainRenderTarget();
 
         RenderSystem.backupProjectionMatrix();
+        RenderSystem.setProjectionMatrix(identityProjectionSlice, ProjectionType.ORTHOGRAPHIC);
 
-        ByteBuffer projBuf = MemoryUtil.memAlloc(RenderSystem.PROJECTION_MATRIX_UBO_SIZE);
-        for (int i = 0; i < 16; i++) {
-            projBuf.putFloat(i % 5 == 0 ? 1.0f : 0.0f);
-        }
-        projBuf.flip();
+        uniformRingBuffer.tryMap();
+        ByteBuffer uniformBuf = uniformRingBuffer.getMappedBuffer();
+        int uniformOffset = 0;
 
-        try (GpuBuffer projectionBuffer = RenderSystem.getDevice().createBuffer(() -> "Blur Projection", GpuBuffer.USAGE_UNIFORM, projBuf)) {
-            MemoryUtil.memFree(projBuf);
-            GpuBufferSlice projectionSlice = projectionBuffer.slice();
-
-            RenderSystem.setProjectionMatrix(projectionSlice, ProjectionType.ORTHOGRAPHIC);
-
-            // 1. Downsample passes
+        try {
             RenderTarget source = mainTarget;
             for (int i = 0; i < passes; i++) {
                 RenderTarget dest = targets.get(i);
-                renderPass(source, dest, i, true, offset, projectionSlice);
+
+                writeUniforms(uniformBuf, uniformOffset, source.width, source.height, offset);
+                GpuBufferSlice uniformSlice = uniformRingBuffer.getGpuBuffer().slice(uniformOffset, 32);
+                uniformOffset += UNIFORM_ALIGNMENT;
+
+                renderPass(source, dest, i, true, uniformSlice, identityProjectionSlice);
                 source = dest;
             }
 
-            // 2. Upsample passes
             for (int i = passes - 1; i >= 0; i--) {
                 RenderTarget dest;
                 if (i == 0) {
@@ -146,9 +161,16 @@ public class BlurShader implements AutoCloseable {
                 } else {
                     dest = targets.get(i - 1);
                 }
-                renderPass(source, dest, i, false, offset, projectionSlice);
+
+                writeUniforms(uniformBuf, uniformOffset, source.width, source.height, offset);
+                GpuBufferSlice uniformSlice = uniformRingBuffer.getGpuBuffer().slice(uniformOffset, 32);
+                uniformOffset += UNIFORM_ALIGNMENT;
+
+                renderPass(source, dest, i, false, uniformSlice, identityProjectionSlice);
                 source = dest;
             }
+        } finally {
+            uniformRingBuffer.unmapAndRotate();
         }
 
         RenderSystem.restoreProjectionMatrix();
@@ -182,7 +204,9 @@ public class BlurShader implements AutoCloseable {
         float u1 = (realX + realW) / screenW;
         float v1 = realY / screenH;
 
-        ByteBuffer buf = MemoryUtil.memAlloc(224);
+        vertexRingBuffer.tryMap();
+        ByteBuffer buf = vertexRingBuffer.getMappedBuffer();
+        buf.position(0);
 
         float x2 = x + width;
         float y2 = y + height;
@@ -198,11 +222,9 @@ public class BlurShader implements AutoCloseable {
         // Vertex 3: x2, y
         writeVertex(buf, x2, y, u1, v0, color, x, y, x2, y2, rTL, rTR, rBR, rBL);
 
-        buf.flip();
+        // No flip needed as we are writing to mapped buffer directly and not passing it to createBuffer
 
-        try (GpuBuffer drawBuffer = RenderSystem.getDevice().createBuffer(() -> "Blur Rect", GpuBuffer.USAGE_VERTEX, buf)) {
-            MemoryUtil.memFree(buf);
-
+        try {
             // Draw
             LuminRenderSystem.applyOrthoProjection();
             RenderTarget mainTarget = mc.getMainRenderTarget();
@@ -223,7 +245,7 @@ public class BlurShader implements AutoCloseable {
                 RenderSystem.bindDefaultUniforms(pass);
                 pass.setUniform("DynamicTransforms", dynamicUniforms);
 
-                pass.setVertexBuffer(0, drawBuffer);
+                pass.setVertexBuffer(0, vertexRingBuffer.getGpuBuffer());
 
                 RenderSystem.AutoStorageIndexBuffer autoIndices = RenderSystem.getSequentialBuffer(VertexFormat.Mode.QUADS);
                 GpuBuffer ibo = autoIndices.getBuffer(6);
@@ -231,8 +253,11 @@ public class BlurShader implements AutoCloseable {
 
                 pass.bindTexture("Sampler0", blurred.getColorTextureView(), linearSampler);
 
+                // firstIndex=0, baseVertex=0, indexCount=6, instanceCount=1
                 pass.drawIndexed(0, 0, 6, 1);
             }
+        } finally {
+            vertexRingBuffer.unmapAndRotate();
         }
     }
 
@@ -253,60 +278,52 @@ public class BlurShader implements AutoCloseable {
         buf.putFloat(r4);
     }
 
-    private void renderPass(RenderTarget source, RenderTarget dest, int level, boolean isDown, float offset, GpuBufferSlice projectionSlice) {
-        float w = source.width;
-        float h = source.height;
+    private void writeUniforms(ByteBuffer buf, int offset, int w, int h, float blurOffset) {
+        buf.position(offset);
+        buf.putFloat(0.5f / w).putFloat(0.5f / h);
+        buf.putFloat(blurOffset);
+        buf.putFloat(0f); // padding
+        buf.putFloat(1f).putFloat(1f);
+        buf.putFloat(0f).putFloat(0f);
+    }
 
-        ByteBuffer uniformBuf = MemoryUtil.memAlloc(32);
-        // uHalfTexelSize (0.5 / width, 0.5 / height)
-        uniformBuf.putFloat(0.5f / w).putFloat(0.5f / h);
-        // uOffset
-        uniformBuf.putFloat(offset);
-        // padding
-        uniformBuf.putFloat(0f);
-        // uUvScale (1, 1)
-        uniformBuf.putFloat(1f).putFloat(1f);
-        // uUvOffset (0, 0)
-        uniformBuf.putFloat(0f).putFloat(0f);
-        uniformBuf.flip();
+    private void renderPass(RenderTarget source, RenderTarget dest, int level, boolean isDown, GpuBufferSlice uniformSlice, GpuBufferSlice projectionSlice) {
+        GpuBufferSlice dynamicUniforms = RenderSystem.getDynamicUniforms().writeTransform(
+                new Matrix4f(),
+                new Vector4f(1, 1, 1, 1),
+                new Vector3f(0, 0, 0),
+                new Matrix4f()
+        );
 
-        try (GpuBuffer uniformBuffer = RenderSystem.getDevice().createBuffer(() -> "Blur Info", GpuBuffer.USAGE_UNIFORM, uniformBuf)) {
-            MemoryUtil.memFree(uniformBuf);
+        try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
+                () -> "Blur Pass " + (isDown ? "Down" : "Up") + " " + level,
+                dest.getColorTextureView(), OptionalInt.of(0),
+                null, OptionalDouble.empty())
+        ) {
+            pass.setPipeline(isDown ? LuminRenderPipelines.BLUR_DOWN : LuminRenderPipelines.BLUR_UP);
 
-            GpuBufferSlice dynamicUniforms = RenderSystem.getDynamicUniforms().writeTransform(
-                    new Matrix4f(),
-                    new Vector4f(1, 1, 1, 1),
-                    new Vector3f(0, 0, 0),
-                    new Matrix4f()
-            );
+            pass.setUniform("DynamicTransforms", dynamicUniforms);
+            pass.setUniform("BlurInfo", uniformSlice);
+            pass.setUniform("Projection", projectionSlice);
 
-            try (RenderPass pass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
-                    () -> "Blur Pass " + (isDown ? "Down" : "Up") + " " + level,
-                    dest.getColorTextureView(), OptionalInt.of(0),
-                    null, OptionalDouble.empty())
-            ) {
-                pass.setPipeline(isDown ? LuminRenderPipelines.BLUR_DOWN : LuminRenderPipelines.BLUR_UP);
+            pass.setVertexBuffer(0, quadBuffer);
 
-                pass.setUniform("DynamicTransforms", dynamicUniforms);
-                pass.setUniform("BlurInfo", uniformBuffer.slice());
-                pass.setUniform("Projection", projectionSlice);
+            RenderSystem.AutoStorageIndexBuffer autoIndices = RenderSystem.getSequentialBuffer(VertexFormat.Mode.QUADS);
+            GpuBuffer ibo = autoIndices.getBuffer(6);
+            pass.setIndexBuffer(ibo, autoIndices.type());
 
-                pass.setVertexBuffer(0, quadBuffer);
+            pass.bindTexture("Sampler0", source.getColorTextureView(), linearSampler);
 
-                RenderSystem.AutoStorageIndexBuffer autoIndices = RenderSystem.getSequentialBuffer(VertexFormat.Mode.QUADS);
-                GpuBuffer ibo = autoIndices.getBuffer(6);
-                pass.setIndexBuffer(ibo, autoIndices.type());
-
-                pass.bindTexture("Sampler0", source.getColorTextureView(), linearSampler);
-
-                pass.drawIndexed(0, 0, 6, 1);
-            }
+            pass.drawIndexed(0, 0, 6, 1);
         }
     }
 
     @Override
     public void close() {
         if (quadBuffer != null) quadBuffer.close();
+        if (identityProjectionBuffer != null) identityProjectionBuffer.close();
+        if (uniformRingBuffer != null) uniformRingBuffer.close();
+        if (vertexRingBuffer != null) vertexRingBuffer.close();
         if (outputTarget != null) outputTarget.destroyBuffers();
         for (RenderTarget target : targets) {
             target.destroyBuffers();

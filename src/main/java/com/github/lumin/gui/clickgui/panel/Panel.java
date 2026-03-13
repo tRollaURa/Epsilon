@@ -64,7 +64,7 @@ public class Panel implements IComponent {
         float x = (screenWidth - scaledWidth) / 2.0f;
         float y = (screenHeight - scaledHeight) / 2.0f;
 
-        shadowRenderer.addShadow(x, y, scaledWidth, scaledHeight, 20f * guiScale, 30f * guiScale, ClickGui.INSTANCE.shadowColor.getValue());
+        shadowRenderer.addShadow(x, y, scaledWidth, scaledHeight, 20f * guiScale, 12f * guiScale, ClickGui.INSTANCE.shadowColor.getValue());
         shadowRenderer.drawAndClear();
 
         float sidebarWidth = Math.max(120f * guiScale, width / 4);
