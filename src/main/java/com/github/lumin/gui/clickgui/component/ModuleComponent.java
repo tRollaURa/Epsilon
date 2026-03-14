@@ -1,5 +1,6 @@
 package com.github.lumin.gui.clickgui.component;
 
+import com.github.lumin.assets.i18n.TranslateComponent;
 import com.github.lumin.gui.Component;
 import com.github.lumin.gui.IComponent;
 import com.github.lumin.gui.clickgui.component.impl.*;
@@ -39,6 +40,10 @@ public class ModuleComponent implements IComponent {
     private boolean animationInitialized = false;
     private boolean isExiting = false;
     private boolean exitAnimationPrepared = false;
+
+    private final TranslateComponent keyBindNoneComponent = TranslateComponent.create("keybind", "none");
+    private final TranslateComponent keyBindToggleComponent = TranslateComponent.create("keybind", "toggle");
+    private final TranslateComponent keyBindHoldComponent  = TranslateComponent.create("keybind", "hold");
 
     public void initAnimation(float sourceX, float sourceY, float sourceW, float sourceH, float targetX, float targetY, float targetW, float targetH) {
         this.sourceX = sourceX;
@@ -187,8 +192,8 @@ public class ModuleComponent implements IComponent {
         float bindPad = 6.0f * guiScale;
         float bindBoxW = Math.max(40.0f * guiScale, bindTextW + bindPad * 2.0f);
 
-        String mode0 = "切换";
-        String mode1 = "按住";
+        String mode0 = keyBindToggleComponent.getTranslatedName();
+        String mode1 = keyBindHoldComponent.getTranslatedName();
         float modeTextScale = 0.80f * guiScale;
         float modePad = 7.0f * guiScale;
         float segW = Math.max(set.font().getWidth(mode0, modeTextScale), set.font().getWidth(mode1, modeTextScale)) + modePad * 2.0f;
@@ -340,7 +345,7 @@ public class ModuleComponent implements IComponent {
 
     private String getKeyBindText() {
         int keyBind = module.getKeyBind();
-        if (keyBind <= 0) return "无";
+        if (keyBind <= 0) return keyBindNoneComponent.getTranslatedName();
         int scancode = GLFW.glfwGetKeyScancode(keyBind);
         String name = GLFW.glfwGetKeyName(keyBind, scancode);
         if (name != null && !name.isEmpty()) {

@@ -24,6 +24,13 @@ public class I18NFileGenerator {
             root.addProperty(catKey, "");
         }
 
+        root.addProperty("lumin.keybind.none", "");
+        root.addProperty("lumin.keybind.toggle", "");
+        root.addProperty("lumin.keybind.hold", "");
+
+        root.addProperty("lumin.gui.search", "");
+        root.addProperty("lumin.gui.gameaccount", "");
+
         for (Module module : Managers.MODULE.getModules()) {
             String modulePrefix = "modules." + module.getName().toLowerCase();
             root.addProperty("lumin." + modulePrefix, "");

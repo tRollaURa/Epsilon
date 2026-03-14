@@ -93,7 +93,7 @@ public class Lumin {
 
         Managers.initManagers();
 
-        I18NFileGenerator.generate("lumin-config/empty.json");
+        I18NFileGenerator.generate("lumin-config/empty-i18n.json");
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             Managers.CONFIG.saveNow();

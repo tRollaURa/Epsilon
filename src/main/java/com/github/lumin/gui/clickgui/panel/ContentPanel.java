@@ -1,5 +1,6 @@
 package com.github.lumin.gui.clickgui.panel;
 
+import com.github.lumin.assets.i18n.TranslateComponent;
 import com.github.lumin.graphics.renderers.RectRenderer;
 import com.github.lumin.graphics.renderers.RoundRectRenderer;
 import com.github.lumin.graphics.renderers.TextRenderer;
@@ -95,6 +96,8 @@ public class ContentPanel implements IComponent {
 
     private boolean settingsExitRequested = false;
 
+    private final TranslateComponent searchComponent = TranslateComponent.create("gui", "search");
+
     public void setBounds(float x, float y, float width, float height) {
         this.x = x;
         this.y = y;
@@ -142,7 +145,7 @@ public class ContentPanel implements IComponent {
     private void renderSearchBox(RendererSet set, float x, float y, float w, float h, float guiScale, boolean focused, boolean hovered, String text, float alpha) {
         Color bgColor = focused ? applyAlpha(new Color(50, 50, 50, 200), alpha) : (hovered ? applyAlpha(new Color(40, 40, 40, 200), alpha) : applyAlpha(new Color(30, 30, 30, 200), alpha));
         set.bottomRoundRect().addRoundRect(x, y, w, h, 8f * guiScale, bgColor);
-        String display = text.isEmpty() && !focused ? "搜索..." : text;
+        String display = text.isEmpty() && !focused ? searchComponent.getTranslatedName() : text;
         if (focused && (System.currentTimeMillis() % 1000 > 500)) display += "_";
         set.font().addText(display, x + 6 * guiScale, y + h / 2 - 7 * guiScale, guiScale * 0.9f, text.isEmpty() && !focused ? applyAlpha(Color.GRAY, alpha) : applyAlpha(Color.WHITE, alpha));
     }
