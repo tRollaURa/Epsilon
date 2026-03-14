@@ -86,12 +86,12 @@ public class Scaffold extends Module {
 
     private final EnumSetting<Mode> mode = enumSetting("Mode", Mode.TellyBridge);
     private final EnumSetting<SwapMode> swapMode = enumSetting("SwapMode", SwapMode.Normal);
-    private final BoolSetting swapBack = boolSetting("SwapBack", true, () -> swapMode.is("Normal"));
+    private final BoolSetting swapBack = boolSetting("SwapBack", true, () -> swapMode.is(SwapMode.Normal));
     private final BoolSetting swingHand = boolSetting("SwingHand", true);
-    private final IntSetting tellyTick = intSetting("TellyTick", 0, 0, 8, 1, () -> mode.is("Telly"));
-    private final BoolSetting keepY = boolSetting("KeepY", true, () -> mode.is("Telly"));
+    private final IntSetting tellyTick = intSetting("TellyTick", 0, 0, 8, 1, () -> mode.is(Mode.TellyBridge));
+    private final BoolSetting keepY = boolSetting("KeepY", true, () -> mode.is(Mode.TellyBridge));
     private final IntSetting rotationSpeed = intSetting("RotationSpeed", 10, 1, 10, 1);
-    private final IntSetting rotationBackSpeed = intSetting("RotationBackSpeed", 10, 0, 10, 1, () -> mode.is("Telly"));
+    private final IntSetting rotationBackSpeed = intSetting("RotationBackSpeed", 10, 0, 10, 1, () -> mode.is(Mode.TellyBridge));
     private final BoolSetting sideCheck = boolSetting("SideCheck", false);
     private final BoolSetting moveFix = boolSetting("MoveFix", true);
     private final BoolSetting safeWalk = boolSetting("SafeWalk", true);

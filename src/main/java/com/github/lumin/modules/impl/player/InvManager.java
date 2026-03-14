@@ -230,7 +230,9 @@ public class InvManager extends Module {
     }
 
     @SubscribeEvent
-    private void onTick(ClientTickEvent.Pre e) {
+    private void onTick(ClientTickEvent.Pre event) {
+        if (nullCheck()) return;
+
         if (!(mc.screen instanceof ClickGuiScreen) && !this.checkConfig()) {
             ChatUtils.addChatMessage("Duplicate slot config in Inventory Manager! Please check your config!");
             this.toggle();

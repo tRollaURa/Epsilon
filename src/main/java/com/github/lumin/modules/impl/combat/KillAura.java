@@ -1,21 +1,29 @@
 package com.github.lumin.modules.impl.combat;
 
+import com.github.lumin.assets.resources.ResourceLocationUtils;
 import com.github.lumin.managers.Managers;
 import com.github.lumin.modules.Category;
 import com.github.lumin.modules.Module;
-import com.github.lumin.settings.impl.BoolSetting;
-import com.github.lumin.settings.impl.DoubleSetting;
-import com.github.lumin.settings.impl.EnumSetting;
-import com.github.lumin.settings.impl.IntSetting;
+import com.github.lumin.settings.impl.*;
 import com.github.lumin.utils.math.MathUtils;
-import com.github.lumin.utils.player.FindItemResult;
-import com.github.lumin.utils.player.InvUtils;
-import com.github.lumin.utils.render.Render3DUtils;
+import com.github.lumin.utils.render.ColorUtils;
 import com.github.lumin.utils.rotation.MovementFix;
 import com.github.lumin.utils.rotation.Priority;
-import com.github.lumin.utils.rotation.RaytraceUtils;
 import com.github.lumin.utils.rotation.RotationUtils;
-import net.minecraft.core.component.DataComponents;
+import com.mojang.blaze3d.pipeline.BlendFunction;
+import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.blaze3d.platform.DepthTestFunction;
+import com.mojang.blaze3d.vertex.*;
+import com.mojang.math.Axis;
+import net.minecraft.client.Camera;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.rendertype.LayeringTransform;
+import net.minecraft.client.renderer.rendertype.OutputTarget;
+import net.minecraft.client.renderer.rendertype.RenderSetup;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
+import net.minecraft.util.Util;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -23,17 +31,19 @@ import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.HitResult;
+import net.minecraft.world.phys.Vec3;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
+import org.joml.Matrix4f;
 import org.joml.Vector2f;
 
 import java.awt.*;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.Function;
 
 public class KillAura extends Module {
 
@@ -43,30 +53,64 @@ public class KillAura extends Module {
         super("KillAura", Category.COMBAT);
     }
 
-    public EnumSetting<MoveFixMode> moveFix = enumSetting("MoveFixMode", MoveFixMode.Silent);
-    public EnumSetting<TargetMode> targetMode = enumSetting("TargetMode", TargetMode.Single);
-    public DoubleSetting range = doubleSetting("Range", 3.0, 1.0, 6.0, 0.01);
-    public DoubleSetting aimRange = doubleSetting("AimRange", 4.0, 1.0, 6.0, 0.1);
-    public IntSetting speed = intSetting("Speed", 10, 1, 10, 1);
-    public DoubleSetting fov = doubleSetting("FOV", 360.0, 10.0, 360.0, 1.0);
-    public BoolSetting raytrace = boolSetting("Raytrace", true);
-    public DoubleSetting wallsRange = doubleSetting("WallsRange", 0.0, 0.0, 3.0, 0.1, () -> raytrace.getValue());
-    public BoolSetting cooldownATK = boolSetting("CooldownATK", false);
-    public BoolSetting esp = boolSetting("ESP", false);
-    public DoubleSetting cps = doubleSetting("CPS", 10.0, 1.0, 20.0, 1.0);
-    public DoubleSetting maxCps = doubleSetting("MaxCPS", 12, 1, 20, 1);
-    public BoolSetting player = boolSetting("Player", true);
-    public BoolSetting mob = boolSetting("Mob", true);
-    public BoolSetting animal = boolSetting("Animal", true);
-    public BoolSetting Invisible = boolSetting("Invisible", true);
+    public enum TargetMode {
+        Single,
+        Switch,
+        Multiple,
+    }
 
-    public static LivingEntity target;
-    public static List<LivingEntity> targets = new ArrayList<>();
+    private enum ESPMode {
+        CaptureMark,
+        Firefly
+    }
+
+    private final EnumSetting<TargetMode> targetMode = enumSetting("TargetMode", TargetMode.Single);
+    private final DoubleSetting range = doubleSetting("Range", 3.0, 1.0, 6.0, 0.01);
+    private final DoubleSetting aimRange = doubleSetting("AimRange", 4.0, 1.0, 6.0, 0.1);
+    private final IntSetting rotationSpeed = intSetting("roationspeed", 10, 1, 10, 1);
+    private final DoubleSetting fov = doubleSetting("FOV", 360.0, 10.0, 360.0, 1.0);
+    private final BoolSetting cooldownATK = boolSetting("CooldownATK", false);
+    private final DoubleSetting cps = doubleSetting("CPS", 10.0, 1.0, 20.0, 1.0);
+    private final DoubleSetting maxCps = doubleSetting("MaxCPS", 12, 1, 20, 1);
+    private final BoolSetting player = boolSetting("Player", true);
+    private final BoolSetting mob = boolSetting("Mob", true);
+    private final BoolSetting animal = boolSetting("Animal", true);
+    private final BoolSetting Invisible = boolSetting("Invisible", true);
+    private final BoolSetting esp = boolSetting("ESP", false);
+    private final EnumSetting<ESPMode> espMode = enumSetting("ESPMode", ESPMode.Firefly, esp::getValue);
+    private final ColorSetting espColor1 = colorSetting("ESPMain", new Color(255, 183, 197), esp::getValue);
+    private final ColorSetting espColor2 = colorSetting("ESPSecond", new Color(255, 133, 161), esp::getValue);
+    private final DoubleSetting espSize = doubleSetting("ESPSize", 1.2, 0.5, 3.0, 0.1, esp::getValue);
+    private final DoubleSetting espRotSpeed = doubleSetting("RotSpeed", 2.0, 0.5, 10.0, 0.1, esp::getValue);
+    private final DoubleSetting waveSpeed = doubleSetting("WaveSpeed", 3.0, 0.5, 10.0, 0.1, esp::getValue);
+
+    private LivingEntity target;
+    private final List<LivingEntity> targets = new ArrayList<>();
 
     private int switchIndex = 0;
-    public float attacks = 0;
-    private long lastAttackTime = 0;
+    private float attacks = 0;
 
+    private float rotation = 0f;
+
+    private static final Identifier TARGET_TEX = ResourceLocationUtils.getIdentifier("textures/particles/target.png");
+
+    private final RenderPipeline TARGET_ICON_PIPELINE = RenderPipeline.builder(RenderPipelines.GUI_TEXTURED_SNIPPET)
+            .withLocation("pipeline/sakura_target_icon")
+            .withBlend(BlendFunction.TRANSLUCENT)
+            .withCull(false)
+            .withDepthTestFunction(DepthTestFunction.NO_DEPTH_TEST)
+            .withDepthWrite(false)
+            .build();
+
+    private final Function<Identifier, RenderType> TARGET_ICON_LAYER = Util.memoize(texture -> RenderType.create(
+            "sakura_target_icon",
+            RenderSetup.builder(TARGET_ICON_PIPELINE)
+                    .withTexture("Sampler0", texture)
+                    .sortOnUpload()
+                    .setLayeringTransform(LayeringTransform.VIEW_OFFSET_Z_LAYERING)
+                    .setOutputTarget(OutputTarget.MAIN_TARGET)
+                    .createRenderSetup()
+    ));
 
     @Override
     protected void onDisable() {
@@ -92,7 +136,7 @@ public class KillAura extends Module {
         } else if (targetMode.is("Switch")) {
             if (switchIndex >= targets.size()) switchIndex = 0;
             target = targets.get(switchIndex);
-        } else if (targetMode.is("Multiple")) {
+        } else if (targetMode.is("Multi")) {
             target = targets.getFirst();
         }
 
@@ -100,45 +144,27 @@ public class KillAura extends Module {
 
         if (target != null) {
             float[] rotations = RotationUtils.getRotationsToEntity(target);
-            boolean silent = moveFix.is("Silent");
-            Managers.ROTATION.setRotations(new Vector2f(rotations[0], rotations[1]), speed.getValue().floatValue(), MovementFix.ON, Priority.Medium);
+            Managers.ROTATION.setRotations(new Vector2f(rotations[0], rotations[1]), rotationSpeed.getValue().floatValue(), MovementFix.ON, Priority.Medium);
         }
     }
 
     @SubscribeEvent
-    public void onRender3D(RenderLevelStageEvent.AfterEntities event) {
-        if (!esp.getValue()) return;
-        if (targets.isEmpty()) return;
-
-        for (LivingEntity entity : targets) {
-            if (entity.equals(target)) {
-                Render3DUtils.drawFullBox(event.getPoseStack(), entity.getBoundingBox(), new Color(200, 0, 0, 60), new Color(200, 0, 0, 255), 2f);
-            } else {
-                Render3DUtils.drawFullBox(event.getPoseStack(), entity.getBoundingBox(), new Color(0, 200, 0, 60), new Color(0, 200, 0, 255), 2f);
-            }
-        }
-    }
-
-    @SubscribeEvent
-    public void onClick(ClientTickEvent.Pre e) {
+    public void onClick(ClientTickEvent.Pre event) {
         if (nullCheck()) return;
         if (target == null) return;
         if (mc.player.isUsingItem() || mc.player.isBlocking()) return;
-//        if (mc.player.getAttackStrengthScale(0.5f) < 1.0f && cooldownATK.getValue()) return;
+        if (mc.player.getAttackStrengthScale(0.5f) < 1.0f && cooldownATK.getValue()) return;
+
         while (attacks >= 1) {
-            FindItemResult weapon = findWeapon();
-            if (weapon.found()) {
-                InvUtils.swap(weapon.slot(), true);
-            }
-            if (targetMode.is("Multiple")) {
+            if (targetMode.is("Multi")) {
                 for (LivingEntity t : targets) {
-                    if (RotationUtils.getEyeDistanceToEntity(t) <= range.getValue() && canAttackTarget(target) && mc.hitResult.getType() == HitResult.Type.ENTITY) {
+                    if (RotationUtils.getEyeDistanceToEntity(t) <= range.getValue() && mc.hitResult.getType() == HitResult.Type.ENTITY) {
                         doAttack();
                     }
                 }
                 switchIndex++;
             } else {
-                if (RotationUtils.getEyeDistanceToEntity(target) <= range.getValue() && canAttackTarget(target) && mc.hitResult.getType() == HitResult.Type.ENTITY && mc.crosshairPickEntity.is(target)) {
+                if (RotationUtils.getEyeDistanceToEntity(target) <= range.getValue() && mc.hitResult.getType() == HitResult.Type.ENTITY && mc.crosshairPickEntity.is(target)) {
                     doAttack();
                     if (targetMode.is("Switch")) switchIndex++;
                 } else if (targetMode.is("Switch")) {
@@ -149,32 +175,21 @@ public class KillAura extends Module {
         }
     }
 
-    private void doAttack() {
-        if (cooldownATK.getValue()) {
-            if (mc.player.getAttackStrengthScale(0.5f) >= 1.0f) {
-                mc.gameMode.attack(mc.player, target);
-                mc.player.swing(InteractionHand.MAIN_HAND);
-            }
-        } else {
-            long time = System.currentTimeMillis();
-            double baseDelay = 1000.0 / MathUtils.getRandom(cps.getValue().floatValue(), maxCps.getValue().floatValue());
-            baseDelay += MathUtils.getRandom(-20, 30);
-            long delay = (long) (baseDelay + (Math.random() - 0.5) * baseDelay * 0.4);
-            if (time - lastAttackTime >= delay) {
-                mc.gameMode.attack(mc.player, target);
-                mc.player.swing(InteractionHand.MAIN_HAND);
-                lastAttackTime = time;
-            }
+    @SubscribeEvent
+    private void onRender3D(RenderLevelStageEvent.AfterEntities event) {
+        if (nullCheck() || !esp.getValue() || target == null) return;
+
+        float deltaTick = mc.getDeltaTracker().getGameTimeDeltaPartialTick(true);
+
+        switch (espMode.getValue()) {
+            case CaptureMark -> renderEsp(target, event.getPoseStack(), deltaTick);
         }
+
     }
 
-    private FindItemResult findWeapon() {
-        return InvUtils.findInHotbar(itemStack -> isWeapon(itemStack));
-    }
-
-    private boolean isWeapon(ItemStack itemStack) {
-        if (itemStack.isEmpty()) return false;
-        return itemStack.has(DataComponents.WEAPON);
+    private void doAttack() {
+        mc.gameMode.attack(mc.player, target);
+        mc.player.swing(InteractionHand.MAIN_HAND);
     }
 
     private void updateTargets() {
@@ -208,28 +223,53 @@ public class KillAura extends Module {
         }
     }
 
-    private boolean canAttackTarget(LivingEntity entity) {
-        if (!raytrace.getValue()) {
-            return mc.hitResult.getType() == HitResult.Type.ENTITY && mc.crosshairPickEntity == entity;
-        }
+    private void renderEsp(LivingEntity target, PoseStack poseStack, float tickDelta) {
+        rotation -= espRotSpeed.getValue().floatValue();
+        if (rotation <= -360f) rotation += 360f;
 
-        Vector2f rotation = Managers.ROTATION.lastRotations;
-        if (rotation == null) {
-            rotation = new Vector2f(mc.player.getYRot(), mc.player.getXRot());
-        }
+        Vec3 cam = mc.getEntityRenderDispatcher().camera.position();
 
-        return RaytraceUtils.facingEnemy(mc.player, entity, rotation, range.getValue(), wallsRange.getValue());
+        double ex = Mth.lerp(tickDelta, target.xOld, target.getX()) - cam.x;
+        double ey = Mth.lerp(tickDelta, target.yOld, target.getY()) - cam.y;
+        double ez = Mth.lerp(tickDelta, target.zOld, target.getZ()) - cam.z;
+
+        float entityHeight = target.getBbHeight();
+        float size = espSize.getValue().floatValue() * 0.5f;
+
+        poseStack.pushPose();
+        poseStack.translate(ex, ey + entityHeight * 0.5, ez);
+
+        Camera camera = mc.gameRenderer.getMainCamera();
+        poseStack.mulPose(Axis.YP.rotationDegrees(-camera.yRot()));
+        poseStack.mulPose(Axis.XP.rotationDegrees(camera.xRot()));
+        poseStack.mulPose(Axis.ZP.rotationDegrees(rotation));
+
+        drawTextureQuad(poseStack, size);
+
+        poseStack.popPose();
     }
 
-    public enum MoveFixMode {
-        Silent,
-        Strict,
+    private void drawTextureQuad(PoseStack matrices, float size) {
+        Matrix4f matrix = matrices.last().pose();
+        BufferBuilder buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
+
+        Color c1 = getColorForProgress(0);
+        Color c2 = getColorForProgress(0.25f);
+        Color c3 = getColorForProgress(0.5f);
+        Color c4 = getColorForProgress(0.75f);
+
+        buffer.addVertex(matrix, -size, -size, 0).setUv(0, 0).setColor(c1.getRGB());
+        buffer.addVertex(matrix, -size, size, 0).setUv(0, 1).setColor(c2.getRGB());
+        buffer.addVertex(matrix, size, size, 0).setUv(1, 1).setColor(c3.getRGB());
+        buffer.addVertex(matrix, size, -size, 0).setUv(1, 0).setColor(c4.getRGB());
+
+        TARGET_ICON_LAYER.apply(TARGET_TEX).draw(buffer.buildOrThrow());
     }
 
-    public enum TargetMode {
-        Single,
-        Switch,
-        Multiple,
+    private Color getColorForProgress(float progress) {
+        float wave = (float) Math.sin((progress * Math.PI * 2) + (System.currentTimeMillis() / 1000f * waveSpeed.getValue()));
+        wave = (wave + 1f) / 2f;
+        return ColorUtils.interpolateColor(espColor1.getValue(), espColor2.getValue(), wave);
     }
 
 }
