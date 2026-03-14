@@ -6,8 +6,6 @@ import com.github.lumin.graphics.renderers.RectRenderer;
 import com.github.lumin.graphics.renderers.RoundRectRenderer;
 import com.github.lumin.graphics.renderers.TextRenderer;
 import com.github.lumin.graphics.renderers.TextureRenderer;
-import com.github.lumin.utils.render.animation.Animation;
-import com.github.lumin.utils.render.animation.Easing;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -22,6 +20,7 @@ import net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen;
 import net.minecraft.client.gui.screens.options.OptionsScreen;
 import net.minecraft.client.gui.screens.worldselection.SelectWorldScreen;
 import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.client.resources.sounds.SimpleSoundInstance;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.Identifier;
@@ -44,8 +43,6 @@ public class MainMenuScreen extends Screen {
     private final Minecraft mc = Minecraft.getInstance();
     private LuminTexture backgroundTexture;
     private boolean textureLoaded = false;
-    private final Animation slideAnimation = new Animation(Easing.SMOOTH_STEP, 800);
-    private boolean isFirstRender = true;
 
     public MainMenuScreen() {
         super(Component.literal("主菜单"));
@@ -88,26 +85,41 @@ public class MainMenuScreen extends Screen {
         }
         rectRenderer.addRect(0, 0, width, height, new Color(0, 0, 0, 100));
 
-        if (isFirstRender) {
-            slideAnimation.setValue(mouseX <= width * 0.15f ? 1.0f : 0.0f);
-            isFirstRender = false;
-        }
-        slideAnimation.run(mouseX <= width * 0.15f ? 1.0f : 0.0f);
+        float menuXOffset = 0;
+        float guiScale = (float) mc.getWindow().getGuiScale();
 
-        textRenderer.addGlowingText("Lumin", 30 / (float) mc.getWindow().getGuiScale() + 15 / (float) mc.getWindow().getGuiScale() + (200 / (float) mc.getWindow().getGuiScale() - textRenderer.getWidth("Lumin", 4.0f / (float) mc.getWindow().getGuiScale())) / 2f + -350 / (float) mc.getWindow().getGuiScale() * (1 - slideAnimation.getValue()), height / 2f - 180 / (float) mc.getWindow().getGuiScale(), 4.0f / (float) mc.getWindow().getGuiScale(), new Color(255, 255, 255, 115), 5.0f, 2);
-        textRenderer.addGlowingText("萝莉控NB", 30 / (float) mc.getWindow().getGuiScale() + 35 / (float) mc.getWindow().getGuiScale() + (200 / (float) mc.getWindow().getGuiScale() - textRenderer.getWidth("萝莉控 On Top", 1.3f / (float) mc.getWindow().getGuiScale())) / 2f + -350 / (float) mc.getWindow().getGuiScale() * (1 - slideAnimation.getValue()), height / 2f - 180 / (float) mc.getWindow().getGuiScale() + textRenderer.getHeight(4.0f / (float) mc.getWindow().getGuiScale()) + 10 / (float) mc.getWindow().getGuiScale(), 1.3f / (float) mc.getWindow().getGuiScale(), Color.WHITE, 2.0f, 1);
+        float titleX = 30 / guiScale + 15 / guiScale + (200 / guiScale - textRenderer.getWidth("Lumin", 4.0f / guiScale)) / 2f;
+        textRenderer.addText("Lumin", titleX, height / 2f - 180 / guiScale, 4.0f / guiScale, new Color(255, 255, 255, 115));
 
-        rectRenderer.addRect(-350 / (float) mc.getWindow().getGuiScale() * (1 - slideAnimation.getValue()), 0, 30 / (float) mc.getWindow().getGuiScale() + (200 / (float) mc.getWindow().getGuiScale() + 15 / (float) mc.getWindow().getGuiScale() * 2) + 30 / (float) mc.getWindow().getGuiScale(), height, new Color(15, 15, 15, 200));
-        roundRectRenderer.addRoundRect(30 / (float) mc.getWindow().getGuiScale() + -350 / (float) mc.getWindow().getGuiScale() * (1 - slideAnimation.getValue()), height / 2f - 40 / (float) mc.getWindow().getGuiScale() - 15 / (float) mc.getWindow().getGuiScale(), 200 / (float) mc.getWindow().getGuiScale() + 15 / (float) mc.getWindow().getGuiScale() * 2, (4 * (40 / (float) mc.getWindow().getGuiScale() + 10 / (float) mc.getWindow().getGuiScale())) + 15 / (float) mc.getWindow().getGuiScale() * 2 - 10 / (float) mc.getWindow().getGuiScale(), 12f / (float) mc.getWindow().getGuiScale(), new Color(25, 25, 25, 230));
+        float subTitleX = 30 / guiScale + 35 / guiScale + (200 / guiScale - textRenderer.getWidth("NeoForge 1.21.11", 1.3f / guiScale)) / 2f;
+        textRenderer.addText("NeoForge 1.21.11", subTitleX, height / 2f - 180 / guiScale + textRenderer.getHeight(4.0f / guiScale) + 10 / guiScale, 1.3f / guiScale, Color.WHITE);
 
+        rectRenderer.addRect(0, 0, 30 / guiScale + (200 / guiScale + 15 / guiScale * 2) + 30 / guiScale, height, new Color(15, 15, 15, 200));
+
+        roundRectRenderer.addRoundRect(30 / guiScale, height / 2f - 40 / guiScale - 15 / guiScale, 200 / guiScale + 15 / guiScale * 2, (4 * (40 / guiScale + 10 / guiScale)) + 15 / guiScale * 2 - 10 / guiScale, 12f / guiScale, new Color(25, 25, 25, 230));
+
+        String[] buttons = {
+                I18n.get("menu.singleplayer"),
+                I18n.get("menu.multiplayer"),
+                I18n.get("menu.options"),
+                I18n.get("menu.quit"),
+        };
         for (int i = 0; i < 4; i++) {
-            if (mouseX >= 30 / (float) mc.getWindow().getGuiScale() + 15 / (float) mc.getWindow().getGuiScale() + -350 / (float) mc.getWindow().getGuiScale() * (1 - slideAnimation.getValue()) && mouseX <= 30 / (float) mc.getWindow().getGuiScale() + 15 / (float) mc.getWindow().getGuiScale() + 200 / (float) mc.getWindow().getGuiScale() + -350 / (float) mc.getWindow().getGuiScale() * (1 - slideAnimation.getValue()) && mouseY >= height / 2f - 40 / (float) mc.getWindow().getGuiScale() + i * (40 / (float) mc.getWindow().getGuiScale() + 10 / (float) mc.getWindow().getGuiScale()) && mouseY <= height / 2f - 40 / (float) mc.getWindow().getGuiScale() + i * (40 / (float) mc.getWindow().getGuiScale() + 10 / (float) mc.getWindow().getGuiScale()) + 40 / (float) mc.getWindow().getGuiScale()) {
-                roundRectRenderer.addRoundRect(30 / (float) mc.getWindow().getGuiScale() + 15 / (float) mc.getWindow().getGuiScale() + -350 / (float) mc.getWindow().getGuiScale() * (1 - slideAnimation.getValue()), height / 2f - 40 / (float) mc.getWindow().getGuiScale() + i * (40 / (float) mc.getWindow().getGuiScale() + 10 / (float) mc.getWindow().getGuiScale()), 200 / (float) mc.getWindow().getGuiScale(), 40 / (float) mc.getWindow().getGuiScale(), 8f / (float) mc.getWindow().getGuiScale(), new Color(60, 60, 60, 255));
-                roundRectRenderer.addRoundRect(30 / (float) mc.getWindow().getGuiScale() + 15 / (float) mc.getWindow().getGuiScale() + -350 / (float) mc.getWindow().getGuiScale() * (1 - slideAnimation.getValue()), height / 2f - 40 / (float) mc.getWindow().getGuiScale() + i * (40 / (float) mc.getWindow().getGuiScale() + 10 / (float) mc.getWindow().getGuiScale()), 200 / (float) mc.getWindow().getGuiScale(), 40 / (float) mc.getWindow().getGuiScale(), 8f / (float) mc.getWindow().getGuiScale(), new Color(255, 255, 255, 30));
+            float bx = 30 / guiScale + 15 / guiScale;
+            float by = height / 2f - 40 / guiScale + i * (40 / guiScale + 10 / guiScale);
+            float bw = 200 / guiScale;
+            float bh = 40 / guiScale;
+
+            if (mouseX >= bx && mouseX <= bx + bw && mouseY >= by && mouseY <= by + bh) {
+                roundRectRenderer.addRoundRect(bx, by, bw, bh, 8f / guiScale, new Color(60, 60, 60, 255));
+                roundRectRenderer.addRoundRect(bx, by, bw, bh, 8f / guiScale, new Color(255, 255, 255, 30));
             } else {
-                roundRectRenderer.addRoundRect(30 / (float) mc.getWindow().getGuiScale() + 15 / (float) mc.getWindow().getGuiScale() + -350 / (float) mc.getWindow().getGuiScale() * (1 - slideAnimation.getValue()), height / 2f - 40 / (float) mc.getWindow().getGuiScale() + i * (40 / (float) mc.getWindow().getGuiScale() + 10 / (float) mc.getWindow().getGuiScale()), 200 / (float) mc.getWindow().getGuiScale(), 40 / (float) mc.getWindow().getGuiScale(), 8f / (float) mc.getWindow().getGuiScale(), new Color(40, 40, 40, 255));
+                roundRectRenderer.addRoundRect(bx, by, bw, bh, 8f / guiScale, new Color(40, 40, 40, 255));
             }
-            textRenderer.addGlowingText(new String[]{"单人游戏", "多人游戏", "设置", "退出游戏"}[i], 30 / (float) mc.getWindow().getGuiScale() + 15 / (float) mc.getWindow().getGuiScale() + (200 / (float) mc.getWindow().getGuiScale() - textRenderer.getWidth(new String[]{"单人游戏", "多人游戏", "设置", "退出游戏"}[i], 1.5f / (float) mc.getWindow().getGuiScale())) / 2f + -350 / (float) mc.getWindow().getGuiScale() * (1 - slideAnimation.getValue()), height / 2f - 40 / (float) mc.getWindow().getGuiScale() + i * (40 / (float) mc.getWindow().getGuiScale() + 10 / (float) mc.getWindow().getGuiScale()) + (40 / (float) mc.getWindow().getGuiScale() - textRenderer.getHeight(1.5f / (float) mc.getWindow().getGuiScale())) / 2f, 1.5f / (float) mc.getWindow().getGuiScale(), Color.WHITE, 1.5f, 1);
+
+            float textX = bx + (bw - textRenderer.getWidth(buttons[i], 1.5f / guiScale)) / 2f;
+            float textY = by + (bh - textRenderer.getHeight(1.5f / guiScale)) / 2f;
+            textRenderer.addText(buttons[i], textX, textY, 1.5f / guiScale, Color.WHITE);
         }
 
         textureRenderer.drawAndClear();
@@ -119,8 +131,14 @@ public class MainMenuScreen extends Screen {
     @Override
     public boolean mouseClicked(@NonNull MouseButtonEvent event, boolean focused) {
         if (event.button() == InputConstants.MOUSE_BUTTON_LEFT) {
+            float guiScale = (float) mc.getWindow().getGuiScale();
             for (int i = 0; i < 4; i++) {
-                if (event.x() >= 30 / (float) mc.getWindow().getGuiScale() + 15 / (float) mc.getWindow().getGuiScale() + -350 / (float) mc.getWindow().getGuiScale() * (1 - slideAnimation.getValue()) && event.x() <= 30 / (float) mc.getWindow().getGuiScale() + 15 / (float) mc.getWindow().getGuiScale() + 200 / (float) mc.getWindow().getGuiScale() + -350 / (float) mc.getWindow().getGuiScale() * (1 - slideAnimation.getValue()) && event.y() >= height / 2f - 40 / (float) mc.getWindow().getGuiScale() + i * (40 / (float) mc.getWindow().getGuiScale() + 10 / (float) mc.getWindow().getGuiScale()) && event.y() <= height / 2f - 40 / (float) mc.getWindow().getGuiScale() + i * (40 / (float) mc.getWindow().getGuiScale() + 10 / (float) mc.getWindow().getGuiScale()) + 40 / (float) mc.getWindow().getGuiScale()) {
+                float bx = 30 / guiScale + 15 / guiScale;
+                float by = height / 2f - 40 / guiScale + i * (40 / guiScale + 10 / guiScale);
+                float bw = 200 / guiScale;
+                float bh = 40 / guiScale;
+
+                if (event.x() >= bx && event.x() <= bx + bw && event.y() >= by && event.y() <= by + bh) {
                     mc.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.UI_BUTTON_CLICK.value(), 1.0f));
                     switch (i) {
                         case 0 -> mc.setScreen(new SelectWorldScreen(this));

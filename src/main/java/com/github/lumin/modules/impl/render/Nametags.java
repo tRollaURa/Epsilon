@@ -79,10 +79,10 @@ public class Nametags extends Module {
             float topLineW = (showHealthText.getValue() && hpW > 0.0f) ? textRenderer.getWidth(tag.text(), tag.scale(), StaticFontLoader.REGULAR) + 4.0f + hpW : textRenderer.getWidth(tag.text(), tag.scale(), StaticFontLoader.REGULAR);
 
             roundRectRenderer.addRoundRect(tag.x() - topLineW + 8.0f * 0.5f + 21.5F, tag.y() - textRenderer.getHeight(tag.scale(), StaticFontLoader.REGULAR) + 8 - 15, topLineW + 8.0f, textRenderer.getHeight(tag.scale(), StaticFontLoader.REGULAR) + 8.0f, 6.0f * tag.scale(), backgroundColor.getValue());
-            textRenderer.addGlowingText(tag.text(), tag.x() - topLineW * 0.5f, tag.y() - textRenderer.getHeight(tag.scale(), StaticFontLoader.REGULAR) + 8.0f - 8.0f + 4.0f - 9, tag.scale(), textColor.getValue(), 1.0f, (int) 2.0, StaticFontLoader.REGULAR);
+            textRenderer.addText(tag.text(), tag.x() - topLineW * 0.5f, tag.y() - textRenderer.getHeight(tag.scale(), StaticFontLoader.REGULAR) + 8.0f - 8.0f + 4.0f - 9, tag.scale(), textColor.getValue(), StaticFontLoader.REGULAR);
 
             if (showHealthText.getValue() && hpW > 0.0f) {
-                textRenderer.addGlowingText(tag.healthText(), tag.x() - topLineW * 0.5f + textRenderer.getWidth(tag.text(), tag.scale(), StaticFontLoader.REGULAR) + 4.0f, tag.y() - textRenderer.getHeight(tag.scale(), StaticFontLoader.REGULAR) + 8.0f - 8.0f + 4.0f - 9, tag.scale(), tag.healthColor(), 1.0f, (int) 2.0, StaticFontLoader.REGULAR);
+                textRenderer.addText(tag.healthText(), tag.x() - topLineW * 0.5f + textRenderer.getWidth(tag.text(), tag.scale(), StaticFontLoader.REGULAR) + 4.0f, tag.y() - textRenderer.getHeight(tag.scale(), StaticFontLoader.REGULAR) + 8.0f - 8.0f + 4.0f - 9, tag.scale(), tag.healthColor(), StaticFontLoader.REGULAR);
             }
         }
 

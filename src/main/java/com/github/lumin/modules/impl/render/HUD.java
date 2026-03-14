@@ -32,7 +32,7 @@ public class HUD extends Module {
 
         TextRenderer textRenderer = textRendererSupplier.get();
 
-        textRenderer.addGlowingText("Lumin", 4.0f, 4.0f, scale.getValue().floatValue(), new Color(0x7BE88EE3, true), glowRadius.getValue().floatValue(), glowIntensity.getValue().intValue(), StaticFontLoader.REGULAR);
+        textRenderer.addText("Lumin", 4.0f, 4.0f, scale.getValue().floatValue(), new Color(0x7BE88EE3, true), StaticFontLoader.REGULAR);
 
         textRenderer.drawAndClear();
     }

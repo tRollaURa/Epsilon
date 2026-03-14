@@ -30,8 +30,6 @@ public class ModuleList extends Module {
 
     private final DoubleSetting scale = doubleSetting("Scale", 1.0, 0.5, 2.0, 0.1);
     private final ColorSetting shadowColor = colorSetting("ShadowColor", new Color(68, 0, 0, 94));
-    private final DoubleSetting glowRadius = doubleSetting("GlowRadius", 3.0, 1.0, 10.0, 0.5);
-    private final DoubleSetting glowIntensity = doubleSetting("GlowIntensity", 1.0, 1.0, 5.0, 1.0);
     private final BoolSetting showCategory = boolSetting("ShowCategory", false);
     private final BoolSetting showIcon = boolSetting("ShowIcon", true);
     private final Supplier<TextRenderer> textRendererSupplier = Suppliers.memoize(TextRenderer::new);
@@ -87,7 +85,7 @@ public class ModuleList extends Module {
             float textX = textBoxX + 4.0f * moduleScale - 1.5f;
             float textY = boxY + (item.boxHeight() - textRenderer.getHeight(moduleScale)) / 5.0f;
 //            if ("中文".equals(language.getValue())) {
-            textRenderer.addGlowingText(item.text(), textX + 1, textY, moduleScale, new Color(255, 255, 255, 126), glowRadius.getValue().floatValue(), glowIntensity.getValue().intValue());
+            textRenderer.addText(item.text(), textX + 1, textY, moduleScale, new Color(255, 255, 255, 126));
 //            } else {
 //                textRenderer.addGlowingText(item.text(), textX + 0.7f, textY - 0.5f, moduleScale, new Color(255, 255, 255, 126), glowRadius.getValue().floatValue(), glowIntensity.getValue().intValue());
 //            }
@@ -101,7 +99,7 @@ public class ModuleList extends Module {
                 float iconHeight = textRenderer.getHeight(iconScale, StaticFontLoader.ICONS);
                 float iconX = iconBoxX + (item.boxHeight() - iconWidth) / 3.0f;
                 float iconY = boxY + (item.boxHeight() - iconHeight) / 5.0f;
-                textRenderer.addGlowingText(iconChar, iconX, iconY, iconScale, new Color(255, 255, 255, 92), 3.0f, 1, StaticFontLoader.ICONS);
+                textRenderer.addText(iconChar, iconX, iconY, iconScale, new Color(255, 255, 255, 92), StaticFontLoader.ICONS);
             }
 
             currentY += item.boxHeight() + 2.0f * moduleScale;
