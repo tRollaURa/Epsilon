@@ -12,7 +12,6 @@
     "MixinLivingEntity",
     "MixinLivingEntityRenderer",
     "MixinLocalPlayer",
-    "MixinMinecraft",
     "MixinMultiPlayerGameMode",
     "MixinTitleScreen",
     "MixinWindow"

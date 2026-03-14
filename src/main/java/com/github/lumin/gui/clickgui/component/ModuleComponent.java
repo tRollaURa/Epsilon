@@ -20,6 +20,7 @@ import org.lwjgl.glfw.GLFW;
 import java.awt.*;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Predicate;
 
 public class ModuleComponent implements IComponent {
 
@@ -89,20 +90,21 @@ public class ModuleComponent implements IComponent {
         this.module = module;
 
         for (Setting<?> setting : module.getSettings()) {
-            if (setting instanceof BoolSetting boolValue) {
-                settings.add(new BoolSettingComponent(boolValue));
-            } else if (setting instanceof IntSetting intSetting) {
-                settings.add(new IntSettingComponent(intSetting));
-            } else if (setting instanceof DoubleSetting doubleSetting) {
-                settings.add(new DoubleSettingComponent(doubleSetting));
-            } else if (setting instanceof EnumSetting enumSetting) {
-                settings.add(new EnumSettingComponent(enumSetting));
-            } else if (setting instanceof ColorSetting colorSetting) {
-                settings.add(new ColorSettingComponent(colorSetting));
-            } else if (setting instanceof StringSetting stringSetting) {
-                settings.add(new StringSettingComponent(stringSetting));
+            Component component = createSettingComponent(setting);
+            if (component != null) {
+                settings.add(component);
             }
         }
+    }
+
+    private Component createSettingComponent(Setting<?> setting) {
+        if (setting instanceof BoolSetting boolValue) return new BoolSettingComponent(boolValue);
+        if (setting instanceof IntSetting intSetting) return new IntSettingComponent(intSetting);
+        if (setting instanceof DoubleSetting doubleSetting) return new DoubleSettingComponent(doubleSetting);
+        if (setting instanceof EnumSetting enumSetting) return new EnumSettingComponent(enumSetting);
+        if (setting instanceof ColorSetting colorSetting) return new ColorSettingComponent(colorSetting);
+        if (setting instanceof StringSetting stringSetting) return new StringSettingComponent(stringSetting);
+        return null;
     }
 
     @Override
@@ -169,15 +171,17 @@ public class ModuleComponent implements IComponent {
         }
 
         if (progress <= 0.01f) return;
+        float detailProgress = Mth.clamp((progress - 0.55f) / 0.45f, 0.0f, 1.0f);
+        if (detailProgress <= 0.01f) return;
 
-        int contentAlpha = (int) (255 * progress);
+        int contentAlpha = (int) (255 * detailProgress);
         Color textColor = new Color(255, 255, 255, contentAlpha);
         Color dimTextColor = new Color(200, 200, 200, contentAlpha);
-        Color boxBgColor = new Color(0, 0, 0, (int) (70 * progress));
-        Color selectedBgColor = new Color(255, 255, 255, (int) (26 * progress));
-        Color dividerColor = new Color(255, 255, 255, (int) (14 * progress));
+        Color boxBgColor = new Color(0, 0, 0, (int) (70 * detailProgress));
+        Color selectedBgColor = new Color(255, 255, 255, (int) (26 * detailProgress));
+        Color dividerColor = new Color(255, 255, 255, (int) (14 * detailProgress));
 
-        float titleScale = 1.15f * guiScale * (0.5f + 0.5f * progress);
+        float titleScale = 1.15f * guiScale * (0.92f + 0.08f * detailProgress);
         float titleY = animY + padding - guiScale;
         set.font().addText(module.getTranslatedName(), animX + padding, titleY, titleScale, textColor);
 
@@ -223,7 +227,7 @@ public class ModuleComponent implements IComponent {
         lastBindListenH = headerH;
 
         if (bindingKey) {
-            Color listenBg = new Color(255, 255, 255, (int) (22 * progress));
+            Color listenBg = new Color(255, 255, 255, (int) (22 * detailProgress));
             set.bottomRoundRect().addRoundRect(lastBindListenX, lastBindListenY, lastBindListenW, lastBindListenH, bindRadius, listenBg);
 
             if (System.currentTimeMillis() % 1000 > 500) {
@@ -264,13 +268,13 @@ public class ModuleComponent implements IComponent {
         float itemX = animX + padding;
         float itemW = Math.max(0.0f, animW - padding * 2);
 
-        if (progress > 0.01f) {
+        if (detailProgress > 0.01f) {
             float bgBottom = animY + animH;
             for (Component setting : settings) {
                 if (!isSettingVisible(setting)) continue;
                 if (cursorY + rowH > bgBottom) break;
                 setting.setScale(guiScale);
-                setting.setAlpha(progress);
+                setting.setAlpha(detailProgress);
                 setting.setX(itemX);
                 setting.setY(cursorY);
                 setting.setWidth(itemW);
@@ -282,34 +286,25 @@ public class ModuleComponent implements IComponent {
     }
 
     public void renderOverlays(RendererSet set, int mouseX, int mouseY, float partialTicks) {
-        for (Component setting : settings) {
-            if (!isSettingVisible(setting)) continue;
+        forEachVisibleSetting(setting -> {
             if (setting instanceof ColorSettingComponent c && c.isOpened()) {
                 c.renderOverlay(set, mouseX, mouseY, partialTicks);
             }
-        }
+        });
     }
 
     public void renderOverlayBlurs(int mouseX, int mouseY, float partialTicks) {
-        for (Component setting : settings) {
-            if (!isSettingVisible(setting)) continue;
+        forEachVisibleSetting(setting -> {
             if (setting instanceof ColorSettingComponent c && c.isOpened()) {
                 c.renderOverlayBlur(mouseX, mouseY, partialTicks);
             }
-        }
+        });
     }
 
     @Override
     public boolean mouseClicked(MouseButtonEvent event, boolean focused) {
-        boolean handled = false;
-        for (Component setting : settings) {
-            if (!isSettingVisible(setting)) continue;
-            if (setting instanceof ColorSettingComponent c && c.isOpened()) {
-                if (c.mouseClicked(event, focused)) {
-                    return true;
-                }
-            }
-        }
+        if (dispatchToOpenedColorPickers(setting -> setting.mouseClicked(event, focused))) return true;
+
         if (event.button() == 0) {
             if (MouseUtils.isHovering(lastBindModeX, lastBindModeY, lastBindModeW, lastBindModeH, event.x(), event.y())) {
                 float segW = lastBindModeW / 2.0f;
@@ -332,14 +327,8 @@ public class ModuleComponent implements IComponent {
             bindingKey = false;
             return true;
         }
-        if (isHovered((int) event.x(), (int) event.y())) {
-            for (Component setting : settings) {
-                if (!isSettingVisible(setting)) continue;
-                if (setting.mouseClicked(event, focused)) {
-                    handled = true;
-                }
-            }
-        }
+        boolean handled = isHovered((int) event.x(), (int) event.y())
+                && dispatchToVisibleSettings(setting -> setting.mouseClicked(event, focused));
         return handled || IComponent.super.mouseClicked(event, focused);
     }
 
@@ -392,45 +381,25 @@ public class ModuleComponent implements IComponent {
 
     @Override
     public boolean mouseReleased(MouseButtonEvent event) {
-        for (Component setting : settings) {
-            if (!isSettingVisible(setting)) continue;
-            if (setting instanceof ColorSettingComponent c && c.isOpened()) {
-                if (c.mouseReleased(event)) {
-                    return true;
-                }
-            }
-        }
+        if (dispatchToOpenedColorPickers(setting -> setting.mouseReleased(event))) return true;
         if (hasDraggingSetting() || isHovered((int) event.x(), (int) event.y())) {
-            for (Component setting : settings) {
-                if (!isSettingVisible(setting)) continue;
-                if (setting.mouseReleased(event)) {
-                    return true;
-                }
-            }
+            if (dispatchToVisibleSettings(setting -> setting.mouseReleased(event))) return true;
         }
         return IComponent.super.mouseReleased(event);
     }
 
     public boolean hasDraggingSetting() {
-        for (Component setting : settings) {
-            if (!isSettingVisible(setting)) continue;
-            if (setting instanceof IntSettingComponent c && c.isDragging()) return true;
-            if (setting instanceof DoubleSettingComponent c && c.isDragging()) return true;
-        }
-        return false;
+        return anyVisibleSetting(setting -> {
+            if (setting instanceof IntSettingComponent intSettingComponent) return intSettingComponent.isDragging();
+            if (setting instanceof DoubleSettingComponent doubleSettingComponent)
+                return doubleSettingComponent.isDragging();
+            return false;
+        });
     }
 
     @Override
     public boolean keyPressed(KeyEvent event) {
-        boolean handled = false;
-        for (Component setting : settings) {
-            if (!isSettingVisible(setting)) continue;
-            if (setting instanceof ColorSettingComponent c && c.isOpened()) {
-                if (c.keyPressed(event)) {
-                    return true;
-                }
-            }
-        }
+        if (dispatchToOpenedColorPickers(setting -> setting.keyPressed(event))) return true;
         if (bindingKey) {
             int key = event.key();
             if (key == GLFW.GLFW_KEY_ESCAPE) {
@@ -448,35 +417,17 @@ public class ModuleComponent implements IComponent {
                 return true;
             }
         }
-        for (Component setting : settings) {
-            if (!isSettingVisible(setting)) continue;
-            if (setting.keyPressed(event)) {
-                handled = true;
-            }
-        }
+        boolean handled = dispatchToVisibleSettings(setting -> setting.keyPressed(event));
         return handled || IComponent.super.keyPressed(event);
     }
 
     @Override
     public boolean charTyped(CharacterEvent input) {
-        boolean handled = false;
-        for (Component setting : settings) {
-            if (!isSettingVisible(setting)) continue;
-            if (setting instanceof ColorSettingComponent c && c.isOpened()) {
-                if (c.charTyped(input)) {
-                    return true;
-                }
-            }
-        }
+        if (dispatchToOpenedColorPickers(setting -> setting.charTyped(input))) return true;
         if (bindingKey) {
             return true;
         }
-        for (Component setting : settings) {
-            if (!isSettingVisible(setting)) continue;
-            if (setting.charTyped(input)) {
-                handled = true;
-            }
-        }
+        boolean handled = dispatchToVisibleSettings(setting -> setting.charTyped(input));
         return handled || IComponent.super.charTyped(input);
     }
 
@@ -548,7 +499,7 @@ public class ModuleComponent implements IComponent {
         if (!component.isVisible()) return false;
         if (!filterTextLower.isEmpty()) {
             String name = getSettingDisplayName(component);
-            if (!name.toLowerCase().startsWith(filterTextLower.toLowerCase())) return false;
+            if (name == null || !name.toLowerCase().startsWith(filterTextLower)) return false;
         }
         return isSettingAvailable(component);
     }
@@ -571,6 +522,42 @@ public class ModuleComponent implements IComponent {
         if (component instanceof ColorSettingComponent c) return c.getSetting().getDisplayName();
         if (component instanceof StringSettingComponent c) return c.getSetting().getDisplayName();
         return null;
+    }
+
+    private boolean dispatchToOpenedColorPickers(Predicate<ColorSettingComponent> handler) {
+        for (Component setting : settings) {
+            if (!isSettingVisible(setting)) continue;
+            if (setting instanceof ColorSettingComponent colorSetting && colorSetting.isOpened()) {
+                if (handler.test(colorSetting)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private boolean dispatchToVisibleSettings(Predicate<Component> handler) {
+        boolean handled = false;
+        for (Component setting : settings) {
+            if (!isSettingVisible(setting)) continue;
+            if (handler.test(setting)) handled = true;
+        }
+        return handled;
+    }
+
+    private boolean anyVisibleSetting(Predicate<Component> predicate) {
+        for (Component setting : settings) {
+            if (!isSettingVisible(setting)) continue;
+            if (predicate.test(setting)) return true;
+        }
+        return false;
+    }
+
+    private void forEachVisibleSetting(java.util.function.Consumer<Component> action) {
+        for (Component setting : settings) {
+            if (!isSettingVisible(setting)) continue;
+            action.accept(setting);
+        }
     }
 
 }

@@ -34,11 +34,9 @@ public class Panel implements IComponent {
     }
 
     public void render(RendererSet set, int mouseX, int mouseY, float deltaTicks, float alpha) {
-
         float guiScale = ClickGui.INSTANCE.scale.getValue().floatValue();
         float screenWidth = mc.getWindow().getGuiScaledWidth();
         float screenHeight = mc.getWindow().getGuiScaledHeight();
-
 
         if (ClickGui.INSTANCE.backgroundBlackColor.getValue()) {
             rectRenderer.addRect(0, 0, screenWidth, screenHeight, new Color(18, 18, 18, (int) (110 * alpha)));
@@ -49,29 +47,12 @@ public class Panel implements IComponent {
             BlurShader.INSTANCE.drawBlur(0.0f, 0.0f, screenWidth, screenHeight, 0.0f, ClickGui.INSTANCE.getBlurStrength());
         }
 
-        float targetWidth = screenWidth * 0.5f;
-        float minWidth = 400f * guiScale;
-        float width = Math.max(targetWidth, minWidth);
-        float height = width * 9.0f / 16.0f;
-
-        if (height > screenHeight * 0.9f) {
-            height = screenHeight * 0.9f;
-            width = height * 16.0f / 9.0f;
-        }
-
-        float scaledWidth = width;
-        float scaledHeight = height;
-        float x = (screenWidth - scaledWidth) / 2.0f;
-        float y = (screenHeight - scaledHeight) / 2.0f;
-
-        shadowRenderer.addShadow(x, y, scaledWidth, scaledHeight, 20f * guiScale, 12f * guiScale, ClickGui.INSTANCE.shadowColor.getValue());
+        PanelLayout layout = PanelLayout.compute(screenWidth, screenHeight, guiScale);
+        shadowRenderer.addShadow(layout.x, layout.y, layout.width, layout.height, 20f * guiScale, 12f * guiScale, ClickGui.INSTANCE.shadowColor.getValue());
         shadowRenderer.drawAndClear();
 
-        float sidebarWidth = Math.max(120f * guiScale, width / 4);
-        float contentWidth = width - sidebarWidth;
-
-        sidebar.setBounds(x, y, sidebarWidth, height);
-        contentPanel.setBounds(x + sidebarWidth, y, contentWidth, height);
+        sidebar.setBounds(layout.x, layout.y, layout.sidebarWidth, layout.height);
+        contentPanel.setBounds(layout.x + layout.sidebarWidth, layout.y, layout.contentWidth, layout.height);
         sidebar.render(this.set, mouseX, mouseY, deltaTicks, alpha);
         contentPanel.render(this.set, mouseX, mouseY, deltaTicks, alpha);
 
@@ -105,6 +86,26 @@ public class Panel implements IComponent {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         return sidebar.mouseScrolled(mouseX, mouseY, scrollX, scrollY) || contentPanel.mouseScrolled(mouseX, mouseY, scrollX, scrollY);
+    }
+
+    private record PanelLayout(float x, float y, float width, float height, float sidebarWidth, float contentWidth) {
+        private static PanelLayout compute(float screenWidth, float screenHeight, float guiScale) {
+            float targetWidth = screenWidth * 0.5f;
+            float minWidth = 400f * guiScale;
+            float width = Math.max(targetWidth, minWidth);
+            float height = width * 9.0f / 16.0f;
+
+            if (height > screenHeight * 0.9f) {
+                height = screenHeight * 0.9f;
+                width = height * 16.0f / 9.0f;
+            }
+
+            float x = (screenWidth - width) / 2.0f;
+            float y = (screenHeight - height) / 2.0f;
+            float sidebarWidth = Math.max(120f * guiScale, width / 4);
+            float contentWidth = width - sidebarWidth;
+            return new PanelLayout(x, y, width, height, sidebarWidth, contentWidth);
+        }
     }
 
 }

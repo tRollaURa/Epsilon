@@ -109,12 +109,12 @@ public class Velocity extends Module {
                             stage = VelocityStage.DELAY;
                             velocityTime = System.currentTimeMillis();
                             event.setCanceled(true);
-                            velocity = new Vec3(packet.getMovement().x, packet.getMovement().y, packet.getMovement().z);
+                            velocity = packet.getMovement();
                         } else {
                             lag = false;
                         }
                     } else {
-                        velocity = new Vec3(packet.getMovement().x, packet.getMovement().y, packet.getMovement().z);
+                        velocity = packet.getMovement();
                         stage = VelocityStage.LAG;
                         event.setCanceled(true);
                     }
