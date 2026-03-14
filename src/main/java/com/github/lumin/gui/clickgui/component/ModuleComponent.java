@@ -171,7 +171,7 @@ public class ModuleComponent implements IComponent {
         }
 
         if (progress <= 0.01f) return;
-        float detailProgress = Mth.clamp((progress - 0.55f) / 0.45f, 0.0f, 1.0f);
+        float detailProgress = Mth.clamp((progress - 0.65f) / 0.35f, 0.0f, 1.0f);
         if (detailProgress <= 0.01f) return;
 
         int contentAlpha = (int) (255 * detailProgress);
@@ -270,17 +270,26 @@ public class ModuleComponent implements IComponent {
 
         if (detailProgress > 0.01f) {
             float bgBottom = animY + animH;
+            int visibleSettingIndex = 0;
             for (Component setting : settings) {
                 if (!isSettingVisible(setting)) continue;
                 if (cursorY + rowH > bgBottom) break;
+                float rowDelay = 0.06f;
+                float rowProgress = Mth.clamp((detailProgress - visibleSettingIndex * rowDelay) / (1.0f - rowDelay), 0.0f, 1.0f);
+                if (rowProgress <= 0.0f) {
+                    cursorY += rowH + rowGap;
+                    visibleSettingIndex++;
+                    continue;
+                }
                 setting.setScale(guiScale);
-                setting.setAlpha(detailProgress);
+                setting.setAlpha(rowProgress);
                 setting.setX(itemX);
-                setting.setY(cursorY);
+                setting.setY(cursorY + (1.0f - rowProgress) * 6.0f * guiScale);
                 setting.setWidth(itemW);
                 setting.setHeight(rowH);
                 setting.render(set, mouseX, mouseY, partialTicks);
                 cursorY += rowH + rowGap;
+                visibleSettingIndex++;
             }
         }
     }

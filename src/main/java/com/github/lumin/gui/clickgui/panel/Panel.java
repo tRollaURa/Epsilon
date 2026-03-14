@@ -48,11 +48,17 @@ public class Panel implements IComponent {
         }
 
         PanelLayout layout = PanelLayout.compute(screenWidth, screenHeight, guiScale);
-        shadowRenderer.addShadow(layout.x, layout.y, layout.width, layout.height, 20f * guiScale, 12f * guiScale, ClickGui.INSTANCE.shadowColor.getValue());
+        float renderX = layout.x - (layout.width * guiScale - layout.width) / 2.0f;
+        float renderY = layout.y - (layout.height * guiScale - layout.height) / 2.0f;
+        float renderWidth = layout.width * guiScale;
+        float renderHeight = layout.height * guiScale;
+        float renderSidebarWidth = layout.sidebarWidth * guiScale;
+
+        shadowRenderer.addShadow(renderX, renderY, renderWidth, renderHeight, 20f * guiScale, 12f * guiScale, ClickGui.INSTANCE.shadowColor.getValue());
         shadowRenderer.drawAndClear();
 
-        sidebar.setBounds(layout.x, layout.y, layout.sidebarWidth, layout.height);
-        contentPanel.setBounds(layout.x + layout.sidebarWidth, layout.y, layout.contentWidth, layout.height);
+        sidebar.setBounds(renderX, renderY, layout.sidebarWidth, layout.height);
+        contentPanel.setBounds(renderX + renderSidebarWidth, renderY, layout.contentWidth, layout.height);
         sidebar.render(this.set, mouseX, mouseY, deltaTicks, alpha);
         contentPanel.render(this.set, mouseX, mouseY, deltaTicks, alpha);
 
@@ -91,18 +97,18 @@ public class Panel implements IComponent {
     private record PanelLayout(float x, float y, float width, float height, float sidebarWidth, float contentWidth) {
         private static PanelLayout compute(float screenWidth, float screenHeight, float guiScale) {
             float targetWidth = screenWidth * 0.5f;
-            float minWidth = 400f * guiScale;
+            float minWidth = 400f;
             float width = Math.max(targetWidth, minWidth);
             float height = width * 9.0f / 16.0f;
 
-            if (height > screenHeight * 0.9f) {
-                height = screenHeight * 0.9f;
+            if (height * guiScale > screenHeight * 0.9f) {
+                height = (screenHeight * 0.9f) / guiScale;
                 width = height * 16.0f / 9.0f;
             }
 
             float x = (screenWidth - width) / 2.0f;
             float y = (screenHeight - height) / 2.0f;
-            float sidebarWidth = Math.max(120f * guiScale, width / 4);
+            float sidebarWidth = Math.max(120f, width / 4);
             float contentWidth = width - sidebarWidth;
             return new PanelLayout(x, y, width, height, sidebarWidth, contentWidth);
         }

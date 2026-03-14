@@ -142,9 +142,14 @@ public class ContentPanel implements IComponent {
         float guiScale = getGuiScale();
         if (isTransitioning()) return true;
 
-        if (ColorSettingComponent.hasActivePicker() && ColorSettingComponent.isMouseOutOfPicker((int) event.x(), (int) event.y())) {
-            ColorSettingComponent.closeActivePicker();
-            return true;
+        if (currentState == ViewState.SETTINGS && ColorSettingComponent.hasActivePicker()) {
+            if (ColorSettingComponent.isMouseOutOfPicker((int) event.x(), (int) event.y())) {
+                ColorSettingComponent.closeActivePicker();
+                return true;
+            }
+            boolean handled = settingsView.mouseClicked(event, focused, x, y, width, height, guiScale);
+            if (settingsView.consumeExitRequest()) closeSettingsRequested = true;
+            return handled;
         }
 
         if (!MouseUtils.isHovering(x, y, width * guiScale, height * guiScale, event.x(), event.y())) {
